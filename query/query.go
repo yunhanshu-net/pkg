@@ -20,18 +20,18 @@ type Paginated[T any] struct {
 
 // PageInfoReq 分页参数结构体
 type PageInfoReq struct {
-	Page     int    `json:"page" form:"page" binding:"omitempty,min=1"`
-	PageSize int    `json:"page_size" form:"page_size" binding:"omitempty,min=1"`
-	Sorts    string `json:"sorts" form:"sorts"`
+	Page     int    `json:"page" form:"page" runner:"search_cond;code:page"`
+	PageSize int    `json:"page_size" form:"page_size" runner:"search_cond;code:page_size"`
+	Sorts    string `json:"sorts" form:"sorts" runner:"search_cond;code:sorts"`
 
 	// 查询条件
-	Eq   []string `form:"eq"`   // 格式：field:value
-	Like []string `form:"like"` // 格式：field:value
-	In   []string `form:"in"`   // 格式：field:value
-	Gt   []string `form:"gt"`   // 格式：field:value
-	Gte  []string `form:"gte"`  // 格式：field:value
-	Lt   []string `form:"lt"`   // 格式：field:value
-	Lte  []string `form:"lte"`  // 格式：field:value
+	Eq   []string `form:"eq" runner:"search_cond;code:like"`    // 格式：field:value
+	Like []string `form:"like" runner:"searchw_cond;code:like"` // 格式：field:value
+	In   []string `form:"in" runner:"search_cond;code:in"`      // 格式：field:value
+	Gt   []string `form:"gt" runner:"search_cond;code:gt"`      // 格式：field:value
+	Gte  []string `form:"gte" runner:"search_cond;code:gte"`    // 格式：field:value
+	Lt   []string `form:"lt" runner:"search_cond;code:lt"`      // 格式：field:value
+	Lte  []string `form:"lte" runner:"search_cond;code:lte"`    // 格式：field:value
 }
 
 // QueryConfig 查询配置

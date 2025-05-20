@@ -2,10 +2,13 @@ package tagx
 
 import (
 	"fmt"
+	"github.com/yunhanshu-net/pkg/x/slicesx"
 	"github.com/yunhanshu-net/sdk-go/view/widget/types"
 	"reflect"
 	"strings"
 )
+
+type RunnerTag map[string]string
 
 func ParserKv(tag string) map[string]string {
 	if tag == "" {
@@ -22,14 +25,74 @@ func ParserKv(tag string) map[string]string {
 	return mp
 }
 
-type FieldInfo struct {
+type RunnerFieldInfo struct {
 	Name  string              // 字段名（含匿名字段层级，如"User.ID"）
 	Type  reflect.StructField // 字段类型
-	Tags  map[string]string   // 解析后的标签键值对
+	Tags  RunnerTag           // 解析后的标签键值对
 	Index []int               // 字段索引路径（用于反射）
 }
 
-func (i *FieldInfo) GetValueType() (string, error) {
+func (r *RunnerFieldInfo) IsSearchCond() bool {
+	_, ok := r.Tags["search_cond"]
+	return ok
+}
+
+func (r *RunnerFieldInfo) GetCode() string {
+	get := r.Tags["code"]
+	if get != "" {
+		return get
+	}
+	get = r.Type.Tag.Get("json")
+	if get != "" {
+		return strings.Split(get, ",")[0]
+	}
+	return r.Type.Name
+}
+
+func (r *RunnerFieldInfo) GetName() string {
+	get := r.Tags["name"]
+	if get != "" {
+		return get
+	}
+	get = r.Type.Tag.Get("json")
+	if get != "" {
+		return strings.Split(get, ",")[0]
+	}
+	return r.Type.Name
+}
+
+func (r *RunnerFieldInfo) GetDesc() string {
+	return r.Tags["desc"]
+}
+func (r *RunnerFieldInfo) GetCallbacks() string {
+	return r.Tags["callback"]
+}
+func (r *RunnerFieldInfo) GetExample() string {
+	return r.Tags["example"]
+}
+func (r *RunnerFieldInfo) GetType() string {
+	return r.Tags["type"]
+}
+
+func (r *RunnerFieldInfo) GetRequired() bool {
+	validate := r.Type.Tag.Get("validate")
+	split := strings.Split(validate, ",")
+	return slicesx.ContainsString(split, "required")
+}
+func (r *RunnerFieldInfo) GetValidates() string {
+	validate := r.Type.Tag.Get("validate")
+	split := strings.Split(validate, ",")
+	return strings.Join(slicesx.RemoveString(split, "required"), ",")
+}
+
+func (r *RunnerFieldInfo) GetValueType() string {
+	valueType, err := r.getValueType()
+	if err != nil {
+		return types.ValueString
+	}
+	return types.UseValueType(r.GetType(), valueType)
+}
+func (i *RunnerFieldInfo) getValueType() (string, error) {
 	switch i.Type.Type.Kind() {
 	case reflect.Struct:
 		return types.ValueObject, nil
@@ -52,7 +115,7 @@ func (i *FieldInfo) GetValueType() (string, error) {
 	}
 }
 
-func ParseStructFieldsTypeOf(obj reflect.Type, tagKey string) ([]*FieldInfo, error) {
+func ParseStructFieldsTypeOf(obj reflect.Type, tagKey string) ([]*RunnerFieldInfo, error) {
 	return parseFields(obj, tagKey, nil, nil), nil
 }
 
@@ -76,8 +139,8 @@ func GetSliceElementType(slice interface{}) (tp reflect.Type, err error) {
 }
 
 // 递归解析字段，处理匿名字段
-func parseFields(t reflect.Type, tagKey string, parentIndex []int, parentNames []string) []*FieldInfo {
-	var fields []*FieldInfo
+func parseFields(t reflect.Type, tagKey string, parentIndex []int, parentNames []string) []*RunnerFieldInfo {
+	var fields []*RunnerFieldInfo
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -92,7 +155,7 @@ func parseFields(t reflect.Type, tagKey string, parentIndex []int, parentNames [
 		}
 
 		// 普通字段：生成FieldInfo
-		info := &FieldInfo{
+		info := &RunnerFieldInfo{
 			Name:  strings.Join(currentNames, "."), // 生成层级字段名
 			Type:  field,
 			Tags:  ParseTagToMap(field.Tag.Get(tagKey)),
@@ -102,8 +165,8 @@ func parseFields(t reflect.Type, tagKey string, parentIndex []int, parentNames [
 	}
 	return fields
 }
-func parseFieldsTag(t reflect.Type, tagKey string, parentIndex []int, parentNames []string) []*FieldInfo {
-	var fields []*FieldInfo
+func parseFieldsTag(t reflect.Type, tagKey string, parentIndex []int, parentNames []string) []*RunnerFieldInfo {
+	var fields []*RunnerFieldInfo
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -118,7 +181,7 @@ func parseFieldsTag(t reflect.Type, tagKey string, parentIndex []int, parentName
 		}
 
 		// 普通字段：生成FieldInfo
-		info := &FieldInfo{
+		info := &RunnerFieldInfo{
 			Name:  strings.Join(currentNames, "."), // 生成层级字段名
 			Type:  field,
 			Tags:  ParseTagToMap(field.Tag.Get(tagKey)),

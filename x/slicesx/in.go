@@ -70,6 +70,16 @@ func ContainsString(list []string, el string) bool {
 	}
 	return false
 }
+
+func Contains[T any](list []T, el T, cmp func(T, T) bool) bool {
+	for _, e := range list {
+		if cmp(e, el) {
+			return true
+		}
+	}
+	return false
+}
+
 func RemoveString(list []string, el string) []string {
 	res := []string{}
 	for _, e := range list {

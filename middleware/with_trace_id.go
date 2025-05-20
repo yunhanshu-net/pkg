@@ -3,7 +3,7 @@ package middleware
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/yunhanshu-net/runcher/pkg/constants"
+	"github.com/yunhanshu-net/pkg/constants"
 	"time"
 )
 
