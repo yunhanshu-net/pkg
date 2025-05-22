@@ -28,8 +28,9 @@ func ParserKv(tag string) map[string]string {
 type RunnerFieldInfo struct {
 	Name  string              // 字段名（含匿名字段层级，如"User.ID"）
 	Type  reflect.StructField // 字段类型
-	Tags  RunnerTag           // 解析后的标签键值对
-	Index []int               // 字段索引路径（用于反射）
+	Value reflect.Value
+	Tags  RunnerTag // 解析后的标签键值对
+	Index []int     // 字段索引路径（用于反射）
 }
 
 func (r *RunnerFieldInfo) IsSearchCond() bool {
@@ -70,9 +71,10 @@ func (r *RunnerFieldInfo) GetCallbacks() string {
 func (r *RunnerFieldInfo) GetExample() string {
 	return r.Tags["example"]
 }
-func (r *RunnerFieldInfo) GetType() string {
-	return r.Tags["type"]
-}
+
+//func (r *RunnerFieldInfo) GetType() string {
+//	return r.Tags["type"]
+//}
 
 func (r *RunnerFieldInfo) GetRequired() bool {
 	validate := r.Type.Tag.Get("validate")
@@ -90,7 +92,7 @@ func (r *RunnerFieldInfo) GetValueType() string {
 	if err != nil {
 		return types.ValueString
 	}
-	return types.UseValueType(r.GetType(), valueType)
+	return types.UseValueType(r.Tags["type"], valueType)
 }
 func (i *RunnerFieldInfo) getValueType() (string, error) {
 	switch i.Type.Type.Kind() {
@@ -121,6 +123,10 @@ func ParseStructFieldsTypeOf(obj reflect.Type, tagKey string) ([]*RunnerFieldInf
 
 func GetSliceElementType(slice interface{}) (tp reflect.Type, err error) {
 	t := reflect.TypeOf(slice)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
 	if t.Kind() != reflect.Slice {
 		return nil, fmt.Errorf("input must be a slice")
 	}
@@ -132,9 +138,9 @@ func GetSliceElementType(slice interface{}) (tp reflect.Type, err error) {
 	if elementType.Kind() == reflect.Ptr {
 		elementType = elementType.Elem()
 	}
-	if elementType.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("input must be a struct")
-	}
+	//if elementType.Kind() != reflect.Struct {
+	//	return nil, fmt.Errorf("input must be a struct")
+	//}
 	return elementType, nil
 }
 
@@ -156,6 +162,7 @@ func parseFields(t reflect.Type, tagKey string, parentIndex []int, parentNames [
 
 		// 普通字段：生成FieldInfo
 		info := &RunnerFieldInfo{
+			Value: reflect.New(field.Type).Elem(),
 			Name:  strings.Join(currentNames, "."), // 生成层级字段名
 			Type:  field,
 			Tags:  ParseTagToMap(field.Tag.Get(tagKey)),

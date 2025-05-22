@@ -9,13 +9,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// Paginated 分页结果结构体
-type Paginated[T any] struct {
-	Items       T     `json:"items"`        // 分页数据
-	CurrentPage int   `json:"current_page"` // 当前页码
-	TotalCount  int64 `json:"total_count"`  // 总数据量
-	TotalPages  int   `json:"total_pages"`  // 总页数
-	PageSize    int   `json:"page_size"`    // 每页数量
+// PaginatedTable 分页结果结构体
+type PaginatedTable[T any] struct {
+	Items       T     `json:"items" runner:"widget:table;type:array;code:items"` // 分页数据
+	CurrentPage int   `json:"current_page" runner:"search_cond"`                 // 当前页码
+	TotalCount  int64 `json:"total_count" runner:"search_cond"`                  // 总数据量
+	TotalPages  int   `json:"total_pages" runner:"search_cond"`                  // 总页数
+	PageSize    int   `json:"page_size" runner:"search_cond"`                    // 每页数量
 }
 
 // PageInfoReq 分页参数结构体
@@ -25,13 +25,13 @@ type PageInfoReq struct {
 	Sorts    string `json:"sorts" form:"sorts" runner:"search_cond;code:sorts"`
 
 	// 查询条件
-	Eq   []string `form:"eq" runner:"search_cond;code:like"`    // 格式：field:value
-	Like []string `form:"like" runner:"searchw_cond;code:like"` // 格式：field:value
-	In   []string `form:"in" runner:"search_cond;code:in"`      // 格式：field:value
-	Gt   []string `form:"gt" runner:"search_cond;code:gt"`      // 格式：field:value
-	Gte  []string `form:"gte" runner:"search_cond;code:gte"`    // 格式：field:value
-	Lt   []string `form:"lt" runner:"search_cond;code:lt"`      // 格式：field:value
-	Lte  []string `form:"lte" runner:"search_cond;code:lte"`    // 格式：field:value
+	Eq   []string `form:"eq" runner:"search_cond;code:like"`   // 格式：field:value
+	Like []string `form:"like" runner:"search_cond;code:like"` // 格式：field:value
+	In   []string `form:"in" runner:"search_cond;code:in"`     // 格式：field:value
+	Gt   []string `form:"gt" runner:"search_cond;code:gt"`     // 格式：field:value
+	Gte  []string `form:"gte" runner:"search_cond;code:gte"`   // 格式：field:value
+	Lt   []string `form:"lt" runner:"search_cond;code:lt"`     // 格式：field:value
+	Lte  []string `form:"lte" runner:"search_cond;code:lte"`   // 格式：field:value
 }
 
 // QueryConfig 查询配置
@@ -297,15 +297,15 @@ func validateAndBuildCondition(db *gorm.DB, inputs []string, operator string, co
 	return nil
 }
 
-// AutoPaginate 自动分页查询
-func AutoPaginate[T any](
+// AutoPaginateTable 自动分页查询
+func AutoPaginateTable[T any](
 	ctx context.Context,
 	db *gorm.DB,
 	model interface{},
 	data T,
 	pageInfo *PageInfoReq,
 	configs ...*QueryConfig,
-) (*Paginated[T], error) {
+) (*PaginatedTable[T], error) {
 	if pageInfo == nil {
 		pageInfo = new(PageInfoReq)
 	}
@@ -342,7 +342,7 @@ func AutoPaginate[T any](
 		totalPages++
 	}
 
-	return &Paginated[T]{
+	return &PaginatedTable[T]{
 		Items:       data,
 		CurrentPage: pageInfo.Page,
 		TotalCount:  totalCount,
