@@ -159,13 +159,16 @@ func parseFields(t reflect.Type, tagKey string, parentIndex []int, parentNames [
 			fields = append(fields, embeddedFields...)
 			continue
 		}
-
+		get := field.Tag.Get(tagKey)
+		if get == "-" {
+			continue
+		}
 		// 普通字段：生成FieldInfo
 		info := &RunnerFieldInfo{
 			Value: reflect.New(field.Type).Elem(),
 			Name:  strings.Join(currentNames, "."), // 生成层级字段名
 			Type:  field,
-			Tags:  ParseTagToMap(field.Tag.Get(tagKey)),
+			Tags:  ParseTagToMap(get),
 			Index: currentIndex,
 		}
 		fields = append(fields, info)

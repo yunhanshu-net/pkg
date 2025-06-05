@@ -2,7 +2,8 @@ package usercall
 
 const (
 	// CallbackTypeOnPageLoad 页面事件
-	CallbackTypeOnPageLoad = "OnPageLoad" // 页面加载时
+	CallbackTypeOnPageLoad     = "OnPageLoad"     // 页面加载时
+	CallbackTypeOnCreateTables = "OnCreateTables" // 创建表
 
 	// UserCallTypeOnApiCreated API 生命周期
 	UserCallTypeOnApiCreated    = "OnApiCreated"    // API创建完成时
@@ -23,6 +24,7 @@ const (
 
 	// CallbackTypeOnTableDeleteRows 表格操作
 	CallbackTypeOnTableDeleteRows = "OnTableDeleteRows" // 删除表格行
-	CallbackTypeOnTableUpdateRow  = "OnTableUpdateRow"  // 更新表格行
+	CallbackTypeOnTableAddRows    = "OnTableAddRows"    // 添加表格行
+	CallbackTypeOnTableUpdateRows = "OnTableUpdateRows" // 更新表格行
 	CallbackTypeOnTableSearch     = "OnTableSearch"     // 表格搜索
 )
