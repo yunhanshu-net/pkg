@@ -1,0 +1,3 @@
+2025-06-04 20:56:26.753	[34mINFO[0m	pkg/llm/deepseek/client.go:93 [ChatCompletion]		{"msg": "[DeepSeek] 发送请求: https://api.deepseek.com/chat/completions, Model: deepseek-coder, Messages: 8条, Temperature: 0.10"}
+2025-06-04 20:56:54.225	[34mINFO[0m	pkg/llm/deepseek/client.go:113 [ChatCompletion]		{"msg": "[DeepSeek] 响应完成: 状态=200, 耗时=27.47022025s, 响应长度=2137"}
+2025-06-04 20:56:54.225	[34mINFO[0m	pkg/llm/deepseek/client.go:134 [ChatCompletion]		{"msg": "[DeepSeek] Token使用: 输入=6659, 输出=508, 总计=7167"}
