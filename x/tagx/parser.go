@@ -65,6 +65,10 @@ func (r *RunnerFieldInfo) GetName() string {
 func (r *RunnerFieldInfo) GetDesc() string {
 	return r.Tags["desc"]
 }
+func (r *RunnerFieldInfo) GetDefaultValue() interface{} {
+	return r.Tags["default_value"]
+}
+
 func (r *RunnerFieldInfo) GetCallbacks() string {
 	return r.Tags["callback"]
 }
@@ -72,9 +76,12 @@ func (r *RunnerFieldInfo) GetExample() string {
 	return r.Tags["example"]
 }
 
-//func (r *RunnerFieldInfo) GetType() string {
-//	return r.Tags["type"]
-//}
+func (r *RunnerFieldInfo) GetShow() string {
+	return r.Tags["show"]
+}
+func (r *RunnerFieldInfo) GetHidden() string {
+	return r.Tags["hidden"]
+}
 
 func (r *RunnerFieldInfo) GetRequired() bool {
 	validate := r.Type.Tag.Get("validate")
