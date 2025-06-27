@@ -19,17 +19,17 @@ import (
 // ExampleFormReq 展示form函数支持的所有输入参数类型,(没有标注widget的都默认是input)
 type ExampleFormReq struct {
 	// 基础字符串字段
-	Title       string `json:"title" form:"title" runner:"code:title;name:标题;type:string;placeholder:请输入标题;example:产品发布会" validate:"required,max=200"`                                                    // 标题验证：必填 + 最大长度200，示例值帮助理解字段用途
+	Title       string `json:"title" form:"title" runner:"code:title;name:标题;type:string;placeholder:请输入标题;example:产品发布会" validate:"required,max=200"`                                       // 标题验证：必填 + 最大长度200，示例值帮助理解字段用途
 	Description string `json:"description" form:"description" runner:"code:description;mode:text_area;name:描述;type:string;placeholder:请输入详细描述;example:这是一个关于新产品发布的详细描述" validate:"max=1000"` // 描述验证：可选字段 + 最大长度1000，示例值展示描述格式,这里text_area会渲染成多行文本框
-	Content     string `json:"content" form:"content" runner:"code:content;name:内容;mode:text_area;type:string;placeholder:请输入内容主体;example:产品介绍：本产品具有创新性功能..." validate:"required"`             // 内容验证：必填字段，无长度限制，示例值展示内容格式，这里text_area会渲染成多行文本框
+	Content     string `json:"content" form:"content" runner:"code:content;name:内容;mode:text_area;type:string;placeholder:请输入内容主体;example:产品介绍：本产品具有创新性功能..." validate:"required"`           // 内容验证：必填字段，无长度限制，示例值展示内容格式，这里text_area会渲染成多行文本框
 
 	// 常用验证规则示例
-	Email       string `json:"email" form:"email" runner:"code:email;name:邮箱;type:string;placeholder:请输入邮箱地址;example:user@example.com" validate:"required,email"`                                // 邮箱验证：必填 + 邮箱格式校验，示例值展示邮箱格式
-	Phone       string `json:"phone" form:"phone" runner:"code:phone;name:手机号;type:string;placeholder:请输入11位手机号;example:13812345678" validate:"required,len=11,numeric"`                        // 手机号验证：必填 + 固定11位长度 + 纯数字，示例值展示手机号格式
-	Username    string `json:"username" form:"username" runner:"code:username;name:用户名;type:string;placeholder:请输入用户名;example:user123" validate:"required,min=3,max=20,alphanum"`                // 用户名验证：必填 + 长度3-20 + 字母数字组合，示例值展示用户名格式
-	Password    string `json:"password" form:"password" runner:"code:password;name:密码;mode:password;type:string;placeholder:请输入密码;example:password123" validate:"required,min=6,max=50"`           // 密码验证：必填 + 长度6-50，示例值展示密码格式,这里password会渲染成密码框
+	Email       string `json:"email" form:"email" runner:"code:email;name:邮箱;type:string;placeholder:请输入邮箱地址;example:user@example.com" validate:"required,email"`                              // 邮箱验证：必填 + 邮箱格式校验，示例值展示邮箱格式
+	Phone       string `json:"phone" form:"phone" runner:"code:phone;name:手机号;type:string;placeholder:请输入11位手机号;example:13812345678" validate:"required,len=11,numeric"`                       // 手机号验证：必填 + 固定11位长度 + 纯数字，示例值展示手机号格式
+	Username    string `json:"username" form:"username" runner:"code:username;name:用户名;type:string;placeholder:请输入用户名;example:user123" validate:"required,min=3,max=20,alphanum"`              // 用户名验证：必填 + 长度3-20 + 字母数字组合，示例值展示用户名格式
+	Password    string `json:"password" form:"password" runner:"code:password;name:密码;mode:password;type:string;placeholder:请输入密码;example:password123" validate:"required,min=6,max=50"`       // 密码验证：必填 + 长度6-50，示例值展示密码格式,这里password会渲染成密码框
 	ConfirmPass string `json:"confirm_pass" form:"confirm_pass" runner:"code:confirm_pass;name:确认密码;type:string;placeholder:请再次输入密码;example:password123" validate:"required,eqfield=Password"` // 确认密码验证：必填 + 必须与Password字段相等（字段比较验证），示例值与密码一致
-	Website     string `json:"website" form:"website" runner:"code:website;name:网站;type:string;placeholder:请输入网站地址;example:https://www.example.com" validate:"omitempty,url"`                    // 网站验证：可选字段 + URL格式校验，示例值展示URL格式
+	Website     string `json:"website" form:"website" runner:"code:website;name:网站;type:string;placeholder:请输入网站地址;example:https://www.example.com" validate:"omitempty,url"`                  // 网站验证：可选字段 + URL格式校验，示例值展示URL格式
 
 	// 数值验证规则示例
 	Age    int     `json:"age" form:"age" runner:"code:age;name:年龄;type:number;placeholder:请输入年龄;example:25" validate:"required,min=1,max=150"`                // 年龄验证：必填 + 数值范围1-150，示例值展示合理年龄
@@ -37,32 +37,32 @@ type ExampleFormReq struct {
 	Salary float64 `json:"salary" form:"salary" runner:"code:salary;name:薪资;type:number;placeholder:请输入薪资;example:8000.00" validate:"omitempty,min=0"`         // 薪资验证：可选字段 + 最小值0（非负数），示例值展示薪资格式
 
 	// 字符串长度和格式验证
-	Code       string `json:"code" form:"code" runner:"code:code;name:编码;type:string;placeholder:请输入6位编码;example:ABC123" validate:"required,len=6,alphanum"`                                          // 编码验证：必填 + 固定6位长度 + 字母数字组合，示例值展示编码格式
-	IdCard     string `json:"id_card" form:"id_card" runner:"code:id_card;name:身份证号;type:string;placeholder:请输入18位身份证号;example:110101199001011234" validate:"omitempty,len=18"`                   // 身份证验证：可选字段 + 固定18位长度，示例值展示身份证格式
+	Code       string `json:"code" form:"code" runner:"code:code;name:编码;type:string;placeholder:请输入6位编码;example:ABC123" validate:"required,len=6,alphanum"`                                       // 编码验证：必填 + 固定6位长度 + 字母数字组合，示例值展示编码格式
+	IdCard     string `json:"id_card" form:"id_card" runner:"code:id_card;name:身份证号;type:string;placeholder:请输入18位身份证号;example:110101199001011234" validate:"omitempty,len=18"`                    // 身份证验证：可选字段 + 固定18位长度，示例值展示身份证格式
 	BankCard   string `json:"bank_card" form:"bank_card" runner:"code:bank_card;name:银行卡号;type:string;placeholder:请输入银行卡号;example:6222021234567890123" validate:"omitempty,min=16,max=19,numeric"` // 银行卡验证：可选字段 + 长度16-19位 + 纯数字，示例值展示银行卡格式
-	PostalCode string `json:"postal_code" form:"postal_code" runner:"code:postal_code;name:邮政编码;type:string;placeholder:请输入6位邮政编码;example:100000" validate:"omitempty,len=6,numeric"`             // 邮编验证：可选字段 + 固定6位长度 + 纯数字，示例值展示邮编格式
+	PostalCode string `json:"postal_code" form:"postal_code" runner:"code:postal_code;name:邮政编码;type:string;placeholder:请输入6位邮政编码;example:100000" validate:"omitempty,len=6,numeric"`              // 邮编验证：可选字段 + 固定6位长度 + 纯数字，示例值展示邮编格式
 
 	// 枚举值验证
-	Gender   string `json:"gender" form:"gender" runner:"code:gender;name:性别;widget:select;default_value:male(男);options:male(男),female(女),other(其他);type:string;example:male(男)" validate:"required,oneof=male(男) female(女) other(其他)"`                                                      // 性别验证：必填 + 枚举值校验（oneof值必须与options完全匹配），示例值展示选择格式
+	Gender   string `json:"gender" form:"gender" runner:"code:gender;name:性别;widget:select;default_value:male(男);options:male(男),female(女),other(其他);type:string;example:male(男)" validate:"required,oneof=male(男) female(女) other(其他)"`                                    // 性别验证：必填 + 枚举值校验（oneof值必须与options完全匹配），示例值展示选择格式
 	UserType string `json:"user_type" form:"user_type" runner:"code:user_type;name:用户类型;widget:select;default_value:normal(普通用户);options:normal(普通用户),vip(VIP用户),admin(管理员);type:string;example:normal(普通用户)" validate:"required,oneof=normal(普通用户) vip(VIP用户) admin(管理员)"` // 用户类型验证：必填 + 枚举值校验，展示select组件的正确用法，示例值与默认值一致
 
 	// 选择器字段
-	Category string `json:"category" form:"category" runner:"code:category;name:分类;widget:select;default_value:type1(类型1);options:type1(类型1),type2(类型2),type3(类型3);type:string;example:type1(类型1)" validate:"required,oneof=type1(类型1) type2(类型2) type3(类型3)"`         // 分类验证：必填 + 三选一枚举，default_value必须在options中，示例值与默认值一致
-	Priority string `json:"priority" form:"priority" runner:"code:priority;name:优先级;widget:select;default_value:medium(中);options:low(低),medium(中),high(高);type:string;example:medium(中)" validate:"required,oneof=low(低) medium(中) high(高)"`                                 // 优先级验证：必填 + 三级优先级枚举，示例值展示中等优先级
+	Category string `json:"category" form:"category" runner:"code:category;name:分类;widget:select;default_value:type1(类型1);options:type1(类型1),type2(类型2),type3(类型3);type:string;example:type1(类型1)" validate:"required,oneof=type1(类型1) type2(类型2) type3(类型3)"`     // 分类验证：必填 + 三选一枚举，default_value必须在options中，示例值与默认值一致
+	Priority string `json:"priority" form:"priority" runner:"code:priority;name:优先级;widget:select;default_value:medium(中);options:low(低),medium(中),high(高);type:string;example:medium(中)" validate:"required,oneof=low(低) medium(中) high(高)"`                      // 优先级验证：必填 + 三级优先级枚举，示例值展示中等优先级
 	Status   string `json:"status" form:"status" runner:"code:status;name:状态;widget:select;default_value:draft(草稿);options:draft(草稿),published(已发布),archived(已归档);type:string;example:draft(草稿)" validate:"required,oneof=draft(草稿) published(已发布) archived(已归档)"` // 状态验证：必填 + 三状态枚举（草稿/发布/归档），示例值展示草稿状态
 
 	// 数值字段
-	Amount     float64 `json:"amount" form:"amount" runner:"code:amount;name:金额;type:number;placeholder:请输入金额;default_value:0;example:1299.99" validate:"min=0"`                             // 金额验证：最小值0（非负数），有默认值，示例值展示金额格式
-	Quantity   int     `json:"quantity" form:"quantity" runner:"code:quantity;name:数量;type:number;placeholder:请输入数量;default_value:1;example:5" validate:"min=1,max=9999"`                    // 数量验证：数值范围1-9999，有默认值，示例值展示合理数量
+	Amount     float64 `json:"amount" form:"amount" runner:"code:amount;name:金额;type:number;placeholder:请输入金额;default_value:0;example:1299.99" validate:"min=0"`                           // 金额验证：最小值0（非负数），有默认值，示例值展示金额格式
+	Quantity   int     `json:"quantity" form:"quantity" runner:"code:quantity;name:数量;type:number;placeholder:请输入数量;default_value:1;example:5" validate:"min=1,max=9999"`                  // 数量验证：数值范围1-9999，有默认值，示例值展示合理数量
 	Percentage float64 `json:"percentage" form:"percentage" runner:"code:percentage;name:百分比;type:number;placeholder:请输入百分比(0-100);default_value:0;example:75.5" validate:"min=0,max=100"` // 百分比验证：数值范围0-100，有默认值，示例值展示百分比格式
 
 	// 布尔字段
-	IsPublic  bool   `json:"is_public" form:"is_public" runner:"code:is_public;name:是否公开;widget:switch;true_label:公开;false_label:私有;type:boolean;default_value:false;example:false"`                                             // 原生布尔类型：直接使用bool类型，有默认值，示例值与默认值一致
+	IsPublic  bool   `json:"is_public" form:"is_public" runner:"code:is_public;name:是否公开;widget:switch;true_label:公开;false_label:私有;type:boolean;default_value:false;example:false"`                                     // 原生布尔类型：直接使用bool类型，有默认值，示例值与默认值一致
 	IsActive  string `json:"is_active" form:"is_active" runner:"code:is_active;name:是否启用;widget:select;default_value:true(启用);options:true(启用),false(禁用);example:true(启用)" validate:"required,oneof=true(启用) false(禁用)"` // 布尔选择器：用select实现布尔选择，必填，示例值展示启用状态
-	SendEmail bool   `json:"send_email" form:"send_email" runner:"code:send_email;name:发送邮件通知;widget:switch;true_label:发送;false_label:不发送;type:boolean;default_value:true;example:true"`                                      // 布尔开关：邮件通知开关，有默认值，示例值展示开启状态
+	SendEmail bool   `json:"send_email" form:"send_email" runner:"code:send_email;name:发送邮件通知;widget:switch;true_label:发送;false_label:不发送;type:boolean;default_value:true;example:true"`                                 // 布尔开关：邮件通知开关，有默认值，示例值展示开启状态
 
 	// 多选字段
-	Tags     string `json:"tags" form:"tags" runner:"code:tags;name:标签;type:string;placeholder:多个标签用逗号分隔;example:技术,产品,创新"`                             // 标签字段：多个标签用逗号分隔，无验证规则（可选），示例值展示标签格式
+	Tags     string `json:"tags" form:"tags" runner:"code:tags;name:标签;type:string;placeholder:多个标签用逗号分隔;example:技术,产品,创新"`                     // 标签字段：多个标签用逗号分隔，无验证规则（可选），示例值展示标签格式
 	Keywords string `json:"keywords" form:"keywords" runner:"code:keywords;name:关键词;type:string;placeholder:多个关键词用空格分隔;example:人工智能 机器学习 深度学习"` // 关键词字段：多个关键词用空格分隔，无验证规则（可选），示例值展示关键词格式
 }
 
@@ -71,8 +71,8 @@ type ExampleFormReq struct {
 // ExampleFormResp 展示form函数支持的所有输出结果类型
 type ExampleFormResp struct {
 	// 基础信息字段
-	Message     string `json:"message" runner:"code:message;name:处理结果;type:string;example:表单处理成功"`                  // 处理结果消息：展示操作结果信息，示例值展示成功消息
-	Status      string `json:"status" runner:"code:status;name:状态;type:string;example:success"`                             // 处理状态：成功/失败/处理中等状态，示例值展示成功状态
+	Message     string `json:"message" runner:"code:message;name:处理结果;type:string;example:表单处理成功"`                        // 处理结果消息：展示操作结果信息，示例值展示成功消息
+	Status      string `json:"status" runner:"code:status;name:状态;type:string;example:success"`                           // 处理状态：成功/失败/处理中等状态，示例值展示成功状态
 	ProcessTime string `json:"process_time" runner:"code:process_time;name:处理时间;type:string;example:2024-01-15 14:30:25"` // 处理时间：记录操作完成的时间，示例值展示时间格式
 
 	// 数值结果字段
@@ -82,8 +82,8 @@ type ExampleFormResp struct {
 
 	// 复杂数据字段
 	ResultData string `json:"result_data" runner:"code:result_data;name:结果数据;type:string;example:{\"processed\":150,\"failed\":7}"` // 结果数据：JSON格式的处理结果，示例值展示JSON格式
-	ErrorInfo  string `json:"error_info" runner:"code:error_info;name:错误信息;type:string;example:部分数据格式不正确"`                 // 错误信息：记录处理过程中的错误，示例值展示错误描述
-	LogInfo    string `json:"log_info" runner:"code:log_info;name:日志信息;type:string;example:开始处理->数据验证->业务处理->完成"`     // 日志信息：详细的处理日志，示例值展示日志格式
+	ErrorInfo  string `json:"error_info" runner:"code:error_info;name:错误信息;type:string;example:部分数据格式不正确"`                          // 错误信息：记录处理过程中的错误，示例值展示错误描述
+	LogInfo    string `json:"log_info" runner:"code:log_info;name:日志信息;type:string;example:开始处理->数据验证->业务处理->完成"`                   // 日志信息：详细的处理日志，示例值展示日志格式
 
 	// 文件结果字段
 	ReportUrl string `json:"report_url" runner:"code:report_url;name:报告文件;type:string;example:https://example.com/reports/20240115_report.pdf"` // 报告文件：生成的报告文件下载链接，示例值展示文件URL格式
@@ -91,7 +91,7 @@ type ExampleFormResp struct {
 
 	// 布尔结果字段
 	IsSuccess  bool `json:"is_success" runner:"code:is_success;name:是否成功;true_label:成功;false_label:失败;type:boolean;example:true"` // 是否成功：操作是否成功完成，示例值展示成功状态
-	HasWarning bool `json:"has_warning" runner:"code:has_warning;name:有警告;true_label:有;false_label:无;type:boolean;example:true"`     // 有警告：是否存在警告信息，示例值展示有警告情况
+	HasWarning bool `json:"has_warning" runner:"code:has_warning;name:有警告;true_label:有;false_label:无;type:boolean;example:true"`  // 有警告：是否存在警告信息，示例值展示有警告情况
 
 	// 时间结果字段
 	CreatedAt   string `json:"created_at" runner:"code:created_at;name:创建时间;type:string;example:2024-01-15 14:25:10"`     // 创建时间：记录创建的时间，示例值展示创建时间格式
@@ -100,7 +100,7 @@ type ExampleFormResp struct {
 
 // ===== 函数配置 =====
 
-var ExampleFormConfig = &runner.FunctionInfo{
+var ExampleFormConfig = &runner.FunctionOptions{
 	// 基础信息
 	Tags:        []string{"示例", "表单处理", "数据处理"},
 	EnglishName: "example_form",
@@ -116,8 +116,8 @@ var ExampleFormConfig = &runner.FunctionInfo{
 
 	// 数据库表管理（可选，form函数不一定需要数据库操作）
 	CreateTables: []interface{}{
-		//&ExampleForm{},
-	},                                                          // 如果需要创建表，在这里添加
+			//&ExampleForm{},
+	},             // 如果需要创建表，在这里添加
 	OperateTables: map[interface{}][]runner.OperateTableType{}, // 操作表的映射
 
 	// 页面加载回调
@@ -333,7 +333,7 @@ Form函数完整功能说明：
    - 支持复杂数据：JSON格式的结果数据
    - 支持状态信息：成功/失败状态、警告信息、日志信息
 
-4. 函数配置 (FunctionInfo)：
+4. 函数配置 (FunctionOptions)：
    - Tags: 功能标签，用于分类
    - EnglishName: 英文名称，用于路由
    - ChineseName: 中文名称，用于显示

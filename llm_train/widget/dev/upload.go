@@ -3,6 +3,24 @@ package dev
 // Upload组件设计文档
 // 文件上传相关的组件，支持多种文件类型和上传方式
 
+// ===== 重要说明 =====
+/*
+以下参数是在外层通用结构中定义的，组件内部不需要重复定义：
+- Type: string (固定类型，对应Go类型系统，如typex.File、typex.Files)
+- Widget: string (组件类型，固定为"upload")
+- Code: string (字段标识)
+- Name: string (显示名称)
+- Required: bool (是否必填)
+
+FileWidget结构体只需要定义组件特有的配置参数。
+
+文件类型设计：
+- 单文件：typex.File (包含URL、文件名、大小、类型等信息)
+- 多文件：typex.Files (File数组，支持集合操作)
+- 传输方式：通过URL传递，避免二进制文件在链路中传输
+- 框架封装：自动下载、处理、上传，对用户透明
+*/
+
 // ===== Upload组件定义 =====
 
 // FileWidget 文件上传组件定义

@@ -20,6 +20,7 @@ type FileSaveInfo struct {
 	//FileHomedir  string `json:"file_homedir"`   //文件解压后目录名字
 	FileName string `json:"file_name"` //文件名称
 	FileType string `json:"file_type"` //文件类型
+	MD5      string `json:"md5"`       //文件哈希值，用于完整性校验和去重（注意：不同存储服务商可能使用不同的哈希算法，如七牛云使用ETag算法）
 }
 
 type GetFileInfo struct {

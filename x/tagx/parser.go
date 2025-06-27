@@ -2,10 +2,11 @@ package tagx
 
 import (
 	"fmt"
-	"github.com/yunhanshu-net/function-go/view/widget/types"
-	"github.com/yunhanshu-net/pkg/x/slicesx"
 	"reflect"
 	"strings"
+
+	"github.com/yunhanshu-net/function-go/view/widget/types"
+	"github.com/yunhanshu-net/pkg/x/slicesx"
 )
 
 type RunnerTag map[string]string
@@ -70,7 +71,8 @@ func (r *RunnerFieldInfo) GetDefaultValue() interface{} {
 }
 
 func (r *RunnerFieldInfo) GetCallbacks() string {
-	return r.Tags["callback"]
+	//return r.Tags["callback"]
+	return r.Type.Tag.Get("callback")
 }
 func (r *RunnerFieldInfo) GetExample() string {
 	return r.Tags["example"]
@@ -104,8 +106,27 @@ func (r *RunnerFieldInfo) GetValueType() string {
 func (i *RunnerFieldInfo) getValueType() (string, error) {
 	switch i.Type.Type.Kind() {
 	case reflect.Struct:
+		// 检查是否是files.Files类型（新的增强文件集合）
+		if i.Type.Type.String() == "files.Files" {
+			return types.ValueFiles, nil
+		}
 		return types.ValueObject, nil
-	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int, reflect.Int64, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint, reflect.Uint64:
+	case reflect.Ptr:
+		// 检查指针类型，如*files.Files
+		elemType := i.Type.Type.Elem()
+		if elemType.String() == "files.Files" {
+			return types.ValueFiles, nil
+		}
+		return types.ValueObject, nil
+	case reflect.Slice:
+		// 检查是否是files.FileList类型（文件切片）
+		elemType := i.Type.Type.Elem()
+		if elemType.Kind() == reflect.Ptr {
+			elemType = elemType.Elem()
+		}
+		return getArrayType(elemType), nil
+	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int, reflect.Int64,
+		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint, reflect.Uint64:
 		return types.ValueNumber, nil
 	case reflect.Float32, reflect.Float64:
 		return types.ValueFloat, nil
@@ -113,7 +134,7 @@ func (i *RunnerFieldInfo) getValueType() (string, error) {
 		return types.ValueString, nil
 	case reflect.Bool:
 		return types.ValueBoolean, nil
-	case reflect.Slice, reflect.Array:
+	case reflect.Array:
 		return types.ValueArray, nil
 	case reflect.Map:
 		return types.ValueObject, nil
@@ -121,6 +142,23 @@ func (i *RunnerFieldInfo) getValueType() (string, error) {
 		return types.ValueObject, nil
 	default:
 		return "", fmt.Errorf("unsupported field type: %v", i.Type.Type.Kind())
+	}
+}
+
+func getArrayType(p reflect.Type) string {
+	switch p.Kind() {
+	case reflect.String:
+		return types.ValueStrings
+	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int, reflect.Int64,
+		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint, reflect.Uint64:
+		return types.ValueNumbers
+	case reflect.Float32, reflect.Float64:
+		return types.ValueFloats
+	default:
+		if p.String() == "files.File" {
+			return types.ValueFiles
+		}
+		return types.ValueArray
 	}
 }
 

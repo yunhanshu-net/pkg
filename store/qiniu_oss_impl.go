@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/qiniu/api.v7/v7/auth/qbox"
-	"github.com/qiniu/api.v7/v7/storage"
-	"github.com/yunhanshu-net/pkg/x/httpx"
-	"github.com/yunhanshu-net/pkg/x/stringsx"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"encoding/base64"
+	"encoding/hex"
+
+	"github.com/qiniu/api.v7/v7/auth/qbox"
+	"github.com/qiniu/api.v7/v7/storage"
+	"github.com/yunhanshu-net/pkg/x/httpx"
 )
 
 func NewDefaultQiNiu() *QiNiu {
@@ -57,30 +60,51 @@ func (q *QiNiu) FileSave(localFilePath string, ossPath string) (*FileSaveInfo, e
 	}
 	defer file.Close()
 	name := file.Name()
-	fileType := stringsx.GetSuffix(name, ".")
+	fileType := filepath.Ext(name)
+	if len(fileType) > 0 {
+		fileType = fileType[1:] // 去掉点号
+	}
 	putPolicy := storage.PutPolicy{Scope: q.Bucket}
 	mac := qbox.NewMac(q.AccessKey, q.SecretKey)
 	upToken := putPolicy.UploadToken(mac)
 	cfg := qiniuConfig()
 	formUploader := storage.NewFormUploader(cfg)
 	ret := storage.PutRet{}
-	putExtra := storage.PutExtra{Params: map[string]string{"x:name": "github logo"}} // 创建文件 defer 关闭
-	stat, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
+	putExtra := storage.PutExtra{Params: map[string]string{"x:name": "github logo"}}
 
 	fileKey := fmt.Sprintf("%s", ossPath) // 文件名格式 自己可以改 建议保证唯一性
-	putErr := formUploader.Put(context.Background(), &ret, upToken, fileKey, file, stat.Size(), &putExtra)
+	putErr := formUploader.PutFile(context.Background(), &ret, upToken, fileKey, localFilePath, &putExtra)
 	if putErr != nil {
-		return nil, errors.New("function formUploader.Put() failed, err:" + putErr.Error())
+		return nil, putErr
+	}
+
+	// 七牛云返回的Hash字段是七牛云自己的ETag算法，不是标准MD5
+	// ETag算法说明：
+	// - 小文件(≤4M): hash = UrlsafeBase64([0x16, sha1(FileContent)])
+	// - 大文件(>4M): hash = UrlsafeBase64([0x96, sha1([sha1(Block1), sha1(Block2), ...])])
+	// 这个哈希值可以用于文件完整性校验和去重，但不是标准的MD5
+	qiniuETag := ""
+	if ret.Hash != "" {
+		// 七牛云返回的是URL安全的Base64编码，需要先转换为标准Base64
+		base64Hash := ret.Hash
+		// 将URL安全的Base64转换为标准Base64
+		base64Hash = strings.ReplaceAll(base64Hash, "-", "+")
+		base64Hash = strings.ReplaceAll(base64Hash, "_", "/")
+
+		// 解码Base64得到原始字节
+		hashBytes, decodeErr := base64.StdEncoding.DecodeString(base64Hash)
+		if decodeErr == nil {
+			// 转换为十六进制字符串（这是七牛云ETag的十六进制表示，不是MD5）
+			qiniuETag = hex.EncodeToString(hashBytes)
+		}
 	}
 
 	return &FileSaveInfo{
-		SavePath:     q.ImgPath + "/" + ret.Key,
-		SaveFullPath: q.Domain + q.ImgPath + "/" + ret.Key,
+		SavePath:     "/" + fileKey,
+		SaveFullPath: q.Domain + "/" + fileKey,
 		FileName:     name,
 		FileType:     fileType,
+		MD5:          qiniuETag, // 注意：这里存储的是七牛云ETag，不是标准MD5
 	}, nil
 }
 
@@ -100,8 +124,11 @@ func (q *QiNiu) GetFile(savePath string) (*GetFileInfo, error) {
 		return nil, err
 	}
 	p := strings.ReplaceAll(savePath, "\\", "/")
-	fileName := stringsx.GetSuffix(p, "/")
-	fileSuffix := stringsx.GetSuffix(p, ".")
+	fileName := filepath.Base(p)  // 使用标准库获取文件名
+	fileSuffix := filepath.Ext(p) // 使用标准库获取文件扩展名
+	if fileSuffix != "" && fileSuffix[0] == '.' {
+		fileSuffix = fileSuffix[1:] // 移除开头的点
+	}
 
 	return &GetFileInfo{
 		FileSaveInfo: FileSaveInfo{

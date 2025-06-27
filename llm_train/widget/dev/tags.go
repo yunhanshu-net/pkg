@@ -103,7 +103,7 @@ type SelectTags struct {
 }
 
 // 使用示例：
-// Status string `runner:"code:status;name:状态;widget:select;options:active(启用),inactive(禁用);default_value:active;example:active(启用)"`
+// Status string `runner:"code:status;name:状态;widget:select;options:active(启用),inactive(禁用);default_value:active(启用);example:active(启用)" validate:"required,oneof=active(启用) inactive(禁用)"`
 
 // SwitchTags switch组件专用标签
 type SwitchTags struct {
@@ -216,7 +216,7 @@ type User struct {
     ID       uint   `runner:"code:id;name:ID;show:list,detail;example:1001" json:"id"`
     Username string `runner:"code:username;name:用户名;widget:input;mode:line_text;placeholder:请输入用户名;example:user123" validate:"required,min=3,max=20"`
     Password string `runner:"code:password;name:密码;widget:input;mode:password;hidden:list,detail;example:password123" validate:"required,min=6"`
-    Status   string `runner:"code:status;name:状态;widget:select;options:active(启用),inactive(禁用);default_value:active;example:active(启用)" validate:"required,oneof=active inactive"`
+    Status   string `runner:"code:status;name:状态;widget:select;options:active(启用),inactive(禁用);default_value:active(启用);example:active(启用)" validate:"required,oneof=active(启用) inactive(禁用)"`
     IsVIP    bool   `runner:"code:is_vip;name:VIP用户;widget:switch;on_text:是;off_text:否;example:false"`
     Age      int    `runner:"code:age;name:年龄;widget:number;min:1;max:150;unit:岁;example:25" validate:"min=1,max=150"`
 }

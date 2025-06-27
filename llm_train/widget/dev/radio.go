@@ -239,7 +239,7 @@ type BadExample struct {
     Gender string `runner:"code:gender;name:性别;widget:radio;options:male,female"` // 应该添加oneof验证
 
     // 默认值不在选项中
-    Status string `runner:"code:status;name:状态;widget:radio;options:active,inactive;default_value:pending"` // 默认值必须在options中
+    Status string `runner:"code:status;name:状态;widget:radio;options:active,inactive;default_value:active"` // 默认值必须在options中
 }
 ```
 */

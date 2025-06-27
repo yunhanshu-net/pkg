@@ -93,7 +93,7 @@ type ExampleListReq struct {
 
 // ===== 函数配置 =====
 
-var ExampleTableConfig = &runner.FunctionInfo{
+var ExampleTableConfig = &runner.FunctionOptions{
 	// 基础信息
 	Tags:        []string{"示例", "表格管理", "数据展示"},
 	EnglishName: "example_table",
@@ -220,7 +220,7 @@ Table函数完整功能说明：
    - options: 选择器选项 (格式：value(label),value2(label2))
    - validate: 验证规则 (required, max, min, oneof等)
 
-3. 字段显示控制（show/hidden）：
+3. 字段显示控制（show/hidden）：注意这里list只是代表可以显示，create和update表示的是字段的可编辑和可新增
    - 默认行为：不填show和hidden = 全部场景显示
    - 正向控制：show:list,create,update = 只在指定场景显示
    - 反向控制：hidden:list,create,update = 在指定场景隐藏
@@ -236,7 +236,7 @@ Table函数完整功能说明：
    - 支持各种查询类型：精确匹配、模糊搜索、范围查询
    - 参数也需要runner标签配置UI组件
 
-5. 函数配置 (FunctionInfo)：
+5. 函数配置 (FunctionOptions)：
    - Tags: 功能标签，用于分类
    - EnglishName: 英文名称，用于路由
    - ChineseName: 中文名称，用于显示
