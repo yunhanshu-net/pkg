@@ -120,39 +120,6 @@ var ExampleFormConfig = &runner.FunctionOptions{
 	},             // 如果需要创建表，在这里添加
 	OperateTables: map[interface{}][]runner.OperateTableType{}, // 操作表的映射
 
-	// 页面加载回调
-	OnPageLoad: func(ctx *runner.Context, resp response.Response) (initData *usercall.OnPageLoadResp, err error) {
-		// 页面加载时执行的函数，可以做初始化操作
-
-		// 返回初始化的表单数据和结果
-		resp.Form(&ExampleFormResp{
-			Message:     "请填写表单信息",
-			Status:      "等待处理",
-			ProcessTime: time.Now().Format("2006-01-02 15:04:05"),
-			TotalCount:  0,
-			SuccessRate: 0.0,
-			IsSuccess:   false,
-			HasWarning:  false,
-		}).Build()
-
-		// 返回初始化数据，设置默认表单值
-		initData = &usercall.OnPageLoadResp{
-			Request: ExampleFormReq{
-				Category:   "type1(类型1)",
-				Priority:   "medium(中)",
-				Status:     "draft(草稿)",
-				IsActive:   "true(启用)",
-				IsPublic:   false,
-				SendEmail:  true,
-				Quantity:   1,
-				Amount:     0.0,
-				Percentage: 0.0,
-			},
-			AutoRun: false, // 是否在页面加载时自动运行一次函数
-		}
-		return
-	},
-
 	// API创建回调
 	OnApiCreated: func(ctx *runner.Context, req *usercall.OnApiCreatedReq) error {
 		logger.Infof(ctx, "示例表单处理API创建成功: %+v", req)

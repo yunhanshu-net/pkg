@@ -27,4 +27,7 @@ const (
 	CallbackTypeOnTableAddRows    = "OnTableAddRows"    // 添加表格行
 	CallbackTypeOnTableUpdateRows = "OnTableUpdateRows" // 更新表格行
 	CallbackTypeOnTableSearch     = "OnTableSearch"     // 表格搜索
+
+	// CallbackTypeOnDryRun 危险操作预览
+	CallbackTypeOnDryRun = "OnDryRun" // DryRun 预览
 )

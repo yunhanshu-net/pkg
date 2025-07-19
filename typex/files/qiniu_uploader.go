@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/qiniu/api.v7/v7/auth/qbox"
 	"github.com/qiniu/api.v7/v7/storage"
 	"github.com/yunhanshu-net/pkg/trace"
@@ -49,7 +50,7 @@ func (q *QiniuUploader) UploadFile(localPath, filename string) (string, error) {
 	}
 
 	// 生成文件Key（存储路径）
-	fileKey := q.generateFileKey(filename)
+	fileKey := q.generateFileKeyWithPath(localPath, filename)
 
 	// 获取上传Token
 	upToken := q.getUploadToken()
@@ -95,26 +96,53 @@ func (q *QiniuUploader) getUploadToken() string {
 	return putPolicy.UploadToken(mac)
 }
 
-// generateFileKey 生成文件存储Key
-func (q *QiniuUploader) generateFileKey(filename string) string {
-	// 使用时间戳和文件名生成唯一Key
+// generateFileKeyWithPath 生成文件存储Key（带本地路径，现在使用UUID）
+func (q *QiniuUploader) generateFileKeyWithPath(localPath, filename string) string {
+	// 如果有FunctionMsg信息，使用规范的上传路径
+	if q.functionMsg != nil {
+		// 使用FunctionMsg.GetUploadPath()获取规范路径
+		// 格式：租户/应用/函数/方法/output/日期
+		basePath := q.functionMsg.GetUploadPath()
+
+		// 生成UUID作为唯一值（性能更好，避免MD5计算）
+		uniqueID := uuid.New().String()
+
+		// 组合完整路径：租户/应用/函数/方法/output/日期/UUID/原文件名
+		fullPath := fmt.Sprintf("%s/%s/%s", basePath, uniqueID, filename)
+
+		return fullPath
+	}
+
+	// 兜底：如果没有FunctionMsg信息，使用简单的时间戳路径
 	timestamp := time.Now().Format("2006/01/02/15-04-05")
 	ext := filepath.Ext(filename)
 	name := filename[:len(filename)-len(ext)]
 	uniqueId := time.Now().UnixNano()
+	return fmt.Sprintf("uploads/%s/%s_%d%s", timestamp, name, uniqueId, ext)
+}
 
-	// 如果有FunctionMsg信息，使用 user/runner 作为路径前缀
-	if q.functionMsg != nil && q.functionMsg.User != "" && q.functionMsg.Runner != "" {
-		return fmt.Sprintf("%s/%s/%s/%s_%d%s",
-			q.functionMsg.User,
-			q.functionMsg.Runner,
-			timestamp,
-			name,
-			uniqueId,
-			ext)
+// generateFileKey 生成文件存储Key（兼容旧接口）
+func (q *QiniuUploader) generateFileKey(filename string) string {
+	// 如果有FunctionMsg信息，使用规范的上传路径
+	if q.functionMsg != nil {
+		// 使用FunctionMsg.GetUploadPath()获取规范路径
+		// 格式：租户/应用/函数/方法/output/日期
+		basePath := q.functionMsg.GetUploadPath()
+
+		// 生成UUID作为唯一值（性能更好）
+		uniqueID := uuid.New().String()
+
+		// 组合完整路径：租户/应用/函数/方法/output/日期/UUID/原文件名
+		fullPath := fmt.Sprintf("%s/%s/%s", basePath, uniqueID, filename)
+
+		return fullPath
 	}
 
-	// 兜底：如果没有user/runner信息，仍使用uploads前缀
+	// 兜底：如果没有FunctionMsg信息，使用简单的时间戳路径
+	timestamp := time.Now().Format("2006/01/02/15-04-05")
+	ext := filepath.Ext(filename)
+	name := filename[:len(filename)-len(ext)]
+	uniqueId := time.Now().UnixNano()
 	return fmt.Sprintf("uploads/%s/%s_%d%s", timestamp, name, uniqueId, ext)
 }
 

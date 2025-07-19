@@ -2,6 +2,11 @@ package files
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,6 +31,13 @@ type File struct {
 	Description string            `json:"description,omitempty"`
 	AutoDelete  bool              `json:"auto_delete,omitempty"`
 	Compressed  bool              `json:"compressed,omitempty"`
+
+	// 生命周期管理（可以为nil表示无限制）
+	Lifecycle *FileLifecycle `json:"lifecycle,omitempty"`
+
+	// 内部状态字段
+	uploaded    bool `json:"-"` // 是否已上传
+	localCached bool `json:"-"` // 是否为本地缓存文件
 }
 
 // 注意：Files 类型已移动到 files.go 中，现在是一个增强的文件集合对象
@@ -108,6 +120,93 @@ func (f *File) ToDisplayFile() *File {
 		Status:      f.Status,
 		Metadata:    f.Metadata,
 	}
+}
+
+// GetLocalPath 获取本地路径（按需下载）
+func (f *File) GetLocalPath(ctx context.Context) (string, error) {
+	// 如果已有本地路径且文件存在
+	if f.LocalPath != "" {
+		if _, err := os.Stat(f.LocalPath); err == nil {
+			return f.LocalPath, nil
+		}
+	}
+
+	// 如果有URL，下载到项目临时目录
+	if f.URL != "" {
+		localPath, err := f.downloadToProjectTemp(ctx)
+		if err != nil {
+			return "", err
+		}
+		f.LocalPath = localPath
+		f.localCached = true
+		return localPath, nil
+	}
+
+	return "", fmt.Errorf("文件既没有本地路径也没有URL")
+}
+
+// downloadToProjectTemp 下载文件到项目临时目录
+func (f *File) downloadToProjectTemp(ctx context.Context) (string, error) {
+	// 获取项目临时目录
+	workDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("获取工作目录失败: %w", err)
+	}
+
+	// 使用traceID作为临时目录名
+	traceID := "default"
+	if ctx != nil {
+		if ctxTraceID := ctx.Value("trace_id"); ctxTraceID != nil {
+			if id, ok := ctxTraceID.(string); ok {
+				traceID = id
+			}
+		}
+	}
+
+	// 创建临时目录: ./temp/traceID
+	tempBase := filepath.Join(workDir, "temp")
+	if err := os.MkdirAll(tempBase, 0755); err != nil {
+		return "", fmt.Errorf("创建临时目录失败: %w", err)
+	}
+
+	tempDir := filepath.Join(tempBase, traceID)
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return "", fmt.Errorf("创建临时目录失败: %w", err)
+	}
+
+	// 下载文件到临时目录
+	localPath := filepath.Join(tempDir, f.Name)
+
+	// 执行下载逻辑
+	req, err := http.NewRequestWithContext(ctx, "GET", f.URL, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("下载失败，状态码: %d", resp.StatusCode)
+	}
+
+	// 创建本地文件
+	file, err := os.Create(localPath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// 写入文件
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return localPath, nil
 }
 
 // 文件类型常量
@@ -242,5 +341,19 @@ func WithAutoDelete(autoDelete bool) FileOption {
 func WithCompressed(compressed bool) FileOption {
 	return func(f *File) {
 		f.Compressed = compressed
+	}
+}
+
+// WithLifecycle 设置文件生命周期
+func WithLifecycle(lifecycle *FileLifecycle) FileOption {
+	return func(f *File) {
+		f.Lifecycle = lifecycle
+	}
+}
+
+// WithURL 设置文件URL
+func WithURL(url string) FileOption {
+	return func(f *File) {
+		f.URL = url
 	}
 }

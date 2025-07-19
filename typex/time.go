@@ -23,6 +23,12 @@ const ctLayout = "2006-01-02 15:04:05"
 func (t *Time) UnmarshalJSON(b []byte) (err error) {
 	s := strings.Trim(string(b), `"`)
 
+	// 处理空字符串情况 - 设置为零值时间
+	if s == "" || s == "null" {
+		*t = Time(time.Time{})
+		return nil
+	}
+
 	// 支持多种时间格式
 	formats := []string{
 		ctLayout,                   // "2006-01-02 15:04:05"
@@ -53,6 +59,10 @@ func (t Time) GetUnix() int64 {
 }
 
 func (t Time) MarshalJSON() ([]byte, error) {
+	// 处理零值时间 - 返回空字符串
+	if time.Time(t).IsZero() {
+		return []byte(`""`), nil
+	}
 	return []byte(t.String()), nil
 }
 

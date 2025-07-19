@@ -145,7 +145,7 @@ type DateTimeExample struct {
    timestamp := user.EventDateTime.GetUnix()
 
 5. 格式化输出：
-   formatted := time.Time(user.BirthDate).Format("2006年01月02日")
+   formatted := time.Time(user.BirthDate).Kind("2006年01月02日")
 
 6. 数据库查询：
    // 直接用于数据库查询，无需格式转换
@@ -355,4 +355,3 @@ MeetingTime typex.Time `runner:"code:meeting_time;name:会议时间;type:datetim
 预计总工期：2天
 核心优势：type统一性，format灵活性，配置精简化
 */
- 

@@ -1,0 +1,383 @@
+{
+  "examples": {
+    "complete_files": {
+      "description": "完整的Files对象示例，包含多个文件和完整的生命周期配置",
+      "data": {
+        "files": [
+          {
+            "name": "document.pdf",
+            "size": 2048576,
+            "content_type": "application/pdf",
+            "url": "https://oss.example.com/files/document_20250115.pdf",
+            "preview_url": "https://oss.example.com/preview/document_20250115.jpg",
+            "created_at": "2025-01-15T09:30:00Z",
+            "updated_at": "2025-01-15T09:30:15Z",
+            "status": "uploaded",
+            "metadata": {
+              "original_name": "用户文档.pdf",
+              "process_type": "text_extraction",
+              "upload_user": "user123",
+              "pages": "25",
+              "language": "zh-CN"
+            },
+            "hash": "sha256:abc123def456789...",
+            "description": "用户上传的PDF文档",
+            "lifecycle": {
+              "max_downloads": 5,
+              "expires_at": "2025-01-22T09:30:00Z",
+              "downloads": 0
+            }
+          },
+          {
+            "name": "image.jpg",
+            "size": 1024000,
+            "content_type": "image/jpeg",
+            "url": "https://oss.example.com/files/image_20250115.jpg",
+            "preview_url": "https://oss.example.com/preview/image_20250115_thumb.jpg",
+            "created_at": "2025-01-15T09:31:00Z",
+            "updated_at": "2025-01-15T09:31:10Z",
+            "status": "uploaded",
+            "metadata": {
+              "original_name": "照片.jpg",
+              "process_type": "image_analysis",
+              "width": "1920",
+              "height": "1080",
+              "format": "JPEG",
+              "quality": "95"
+            },
+            "hash": "sha256:def456ghi789abc...",
+            "description": "用户上传的图片文件",
+            "lifecycle": null
+          }
+        ],
+        "options": {
+          "process_mode": "auto_extract",
+          "quality": 80,
+          "compress": true,
+          "backup_original": true,
+          "notification": true
+        },
+        "note": "文件处理完成 - 共处理2个文件，提取了PDF文本内容并分析了图片元数据",
+        "config": {
+          "upload_provider": "qiniu",
+          "storage_region": "cn-east-1",
+          "auto_cleanup": true,
+          "encryption": false
+        },
+        "created_at": "2025-01-15T09:30:00Z",
+        "default_lifecycle": {
+          "max_downloads": 10,
+          "expires_at": "2025-01-22T09:30:00Z",
+          "downloads": 0
+        }
+      }
+    },
+    
+    "simple_storage": {
+      "description": "简单存储示例，仅引用已存在的文件URL",
+      "data": {
+        "files": [
+          {
+            "name": "simple.txt",
+            "size": 1024,
+            "content_type": "text/plain",
+            "url": "https://oss.example.com/files/simple.txt",
+            "created_at": "2025-01-15T09:30:00Z",
+            "status": "referenced",
+            "metadata": {}
+          }
+        ],
+        "options": {},
+        "note": "",
+        "config": {},
+        "created_at": "2025-01-15T09:30:00Z",
+        "default_lifecycle": null
+      }
+    },
+    
+    "temporary_files": {
+      "description": "临时文件示例，下载一次后自动删除",
+      "data": {
+        "files": [
+          {
+            "name": "temp_report.txt",
+            "size": 2048,
+            "content_type": "text/plain",
+            "url": "https://oss.example.com/temp/temp_report_20250115.txt",
+            "created_at": "2025-01-15T09:30:00Z",
+            "updated_at": "2025-01-15T09:30:05Z",
+            "status": "uploaded",
+            "metadata": {
+              "type": "report",
+              "auto_generated": "true",
+              "process_id": "proc_123456"
+            },
+            "lifecycle": {
+              "max_downloads": 1,
+              "expires_at": null,
+              "downloads": 0
+            }
+          },
+          {
+            "name": "debug_log.log",
+            "size": 4096,
+            "content_type": "text/plain",
+            "url": "https://oss.example.com/temp/debug_log_20250115.log",
+            "created_at": "2025-01-15T09:30:30Z",
+            "status": "uploaded",
+            "metadata": {
+              "type": "debug_log",
+              "level": "info"
+            },
+            "lifecycle": {
+              "max_downloads": 1,
+              "expires_at": null,
+              "downloads": 0
+            }
+          }
+        ],
+        "options": {
+          "temp_file": true,
+          "auto_delete": true
+        },
+        "note": "临时处理结果 - 下载一次后删除",
+        "config": {
+          "temp_storage": true
+        },
+        "created_at": "2025-01-15T09:30:00Z",
+        "default_lifecycle": {
+          "max_downloads": 1,
+          "expires_at": null,
+          "downloads": 0
+        }
+      }
+    },
+    
+    "expiring_files": {
+      "description": "有效期文件示例，7天后过期",
+      "data": {
+        "files": [
+          {
+            "name": "expiring_data.csv",
+            "size": 4096,
+            "content_type": "text/csv",
+            "url": "https://oss.example.com/expiring/data_20250115.csv",
+            "created_at": "2025-01-15T09:30:00Z",
+            "status": "uploaded",
+            "metadata": {
+              "export_type": "user_data",
+              "records_count": "150",
+              "columns": "5",
+              "format": "CSV"
+            },
+            "lifecycle": {
+              "max_downloads": null,
+              "expires_at": "2025-01-22T09:30:00Z",
+              "downloads": 0
+            }
+          }
+        ],
+        "options": {
+          "export_format": "csv",
+          "include_headers": true
+        },
+        "note": "数据导出结果 - 7天后过期",
+        "config": {
+          "export_type": "user_data"
+        },
+        "created_at": "2025-01-15T09:30:00Z",
+        "default_lifecycle": {
+          "max_downloads": null,
+          "expires_at": "2025-01-22T09:30:00Z",
+          "downloads": 0
+        }
+      }
+    },
+    
+    "mixed_lifecycle": {
+      "description": "混合生命周期示例，不同文件有不同的生命周期",
+      "data": {
+        "files": [
+          {
+            "name": "permanent_backup.zip",
+            "size": 10485760,
+            "content_type": "application/zip",
+            "url": "https://oss.example.com/backup/permanent_backup_20250115.zip",
+            "created_at": "2025-01-15T09:30:00Z",
+            "status": "uploaded",
+            "metadata": {
+              "backup_type": "full",
+              "compressed": "true",
+              "files_count": "50"
+            },
+            "lifecycle": null,
+            "description": "永久备份文件"
+          },
+          {
+            "name": "temp_preview.png",
+            "size": 512000,
+            "content_type": "image/png",
+            "url": "https://oss.example.com/temp/preview_20250115.png",
+            "created_at": "2025-01-15T09:30:30Z",
+            "status": "uploaded",
+            "metadata": {
+              "type": "preview",
+              "width": "800",
+              "height": "600"
+            },
+            "lifecycle": {
+              "max_downloads": 3,
+              "expires_at": "2025-01-16T09:30:00Z",
+              "downloads": 0
+            },
+            "description": "临时预览图片"
+          },
+          {
+            "name": "share_document.docx",
+            "size": 2097152,
+            "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "url": "https://oss.example.com/share/document_20250115.docx",
+            "created_at": "2025-01-15T09:31:00Z",
+            "status": "uploaded",
+            "metadata": {
+              "share_type": "public",
+              "pages": "10",
+              "words": "2500"
+            },
+            "lifecycle": {
+              "max_downloads": 100,
+              "expires_at": "2025-01-29T09:30:00Z",
+              "downloads": 0
+            },
+            "description": "分享文档，2周有效期"
+          }
+        ],
+        "options": {
+          "mixed_storage": true,
+          "auto_categorize": true
+        },
+        "note": "混合存储策略 - 备份文件永久保存，预览图片临时存储，分享文档限期访问",
+        "config": {
+          "storage_strategy": "mixed",
+          "auto_cleanup_temp": true
+        },
+        "created_at": "2025-01-15T09:30:00Z",
+        "default_lifecycle": null
+      }
+    },
+    
+    "empty_files": {
+      "description": "空文件集合示例",
+      "data": {
+        "files": [],
+        "options": {},
+        "note": "",
+        "config": {},
+        "created_at": "2025-01-15T09:30:00Z",
+        "default_lifecycle": null
+      }
+    },
+    
+    "database_storage": {
+      "description": "数据库存储示例，展示如何在数据库中存储Files对象",
+      "data": {
+        "id": 1,
+        "user_id": "user123",
+        "project_name": "文档处理项目",
+        "files": {
+          "files": [
+            {
+              "name": "processed_document.pdf",
+              "size": 1048576,
+              "content_type": "application/pdf",
+              "url": "https://oss.example.com/processed/document_20250115.pdf",
+              "created_at": "2025-01-15T09:30:00Z",
+              "status": "uploaded",
+              "metadata": {
+                "process_type": "ocr",
+                "confidence": "0.95"
+              }
+            }
+          ],
+          "options": {
+            "ocr_enabled": true,
+            "language": "zh-CN"
+          },
+          "note": "OCR处理完成",
+          "config": {},
+          "created_at": "2025-01-15T09:30:00Z",
+          "default_lifecycle": null
+        },
+        "created_at": "2025-01-15T09:30:00Z",
+        "updated_at": "2025-01-15T09:30:15Z"
+      }
+    }
+  },
+  
+  "field_descriptions": {
+    "files_object": {
+      "files": "文件列表数组，包含所有文件的详细信息",
+      "options": "用户选择的参数/选项，键值对形式存储",
+      "note": "用户备注/说明，描述文件集合的用途或处理结果",
+      "config": "处理配置，存储技术相关的配置信息",
+      "created_at": "创建时间，ISO 8601格式",
+      "default_lifecycle": "默认生命周期，null表示无限制"
+    },
+    "file_object": {
+      "name": "文件名，包含扩展名",
+      "size": "文件大小，单位为字节",
+      "content_type": "文件MIME类型，如application/pdf",
+      "url": "文件访问URL，用于下载文件",
+      "preview_url": "预览URL，可选字段，用于显示文件预览",
+      "created_at": "文件创建时间",
+      "updated_at": "文件更新时间，可选字段",
+      "status": "文件状态：pending(待处理)/uploading(上传中)/uploaded(已上传)/failed(失败)/referenced(引用)",
+      "metadata": "元数据键值对，存储文件的额外信息",
+      "hash": "文件哈希值，可选字段，用于校验文件完整性",
+      "description": "文件描述，可选字段",
+      "lifecycle": "文件生命周期，null表示无限制"
+    },
+    "lifecycle_object": {
+      "max_downloads": "最大下载次数，null表示无限制",
+      "expires_at": "过期时间，null表示永不过期，ISO 8601格式",
+      "downloads": "当前下载次数，由服务端维护"
+    }
+  },
+  
+  "status_values": {
+    "pending": "文件待处理状态",
+    "uploading": "文件正在上传中",
+    "uploaded": "文件已成功上传",
+    "failed": "文件上传或处理失败",
+    "referenced": "文件引用状态，指向已存在的URL"
+  },
+  
+  "common_content_types": {
+    "documents": [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/plain",
+      "text/csv"
+    ],
+    "images": [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/svg+xml"
+    ],
+    "videos": [
+      "video/mp4",
+      "video/webm",
+      "video/quicktime"
+    ],
+    "archives": [
+      "application/zip",
+      "application/x-rar-compressed",
+      "application/x-7z-compressed"
+    ]
+  }
+} 

@@ -1,5 +1,11 @@
 package trace
 
+import (
+	"fmt"
+	"strings"
+	"time"
+)
+
 const (
 	FunctionMsgKey = "FunctionMsg"
 )
@@ -10,6 +16,16 @@ type FunctionMsg struct {
 	Version      string       `json:"version"`       //当前版本
 	Runner       string       `json:"runner"`        //app
 	TraceID      string       `json:"trace_id"`      //trace_id
+	Method       string       `json:"method"`
+	Router       string       `json:"router"`
+}
+
+func (f *FunctionMsg) GetUploadPath() string {
+	//每个函数的文件上传目录都不一样，前端上传的属于input，后端处理后上传返回给前端的属于output
+	//租户/应用/函数/方法/output/日期/文件key/文件名称 按照这种格式来，这样可以防止文件重复
+	s := fmt.Sprintf("%s/%s/%s/%s/output/%s", f.User, f.Runner, f.Router, f.Method,
+		time.Now().Format("20060102"))
+	return strings.ReplaceAll(s, "//", "/")
 }
 
 type UploadConfig struct {

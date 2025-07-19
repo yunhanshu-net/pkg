@@ -2,8 +2,10 @@
 package jsonx
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/yunhanshu-net/pkg/logger"
 )
 
 // MustJSON ..
@@ -38,6 +40,7 @@ func JSONString(el interface{}) string {
 func String(el interface{}) string {
 	marshal, err := json.Marshal(el)
 	if err != nil {
+		logger.Errorf(context.Background(), "[jsonx] err:%s el:%+v", err.Error(), el)
 		return ""
 	}
 	return string(marshal)

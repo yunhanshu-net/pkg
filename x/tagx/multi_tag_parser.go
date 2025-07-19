@@ -24,7 +24,8 @@ type FieldConfig struct {
 	Data       *DataConfig
 	Permission *PermissionConfig
 	Callbacks  []*CallbackConfig
-	Validation string // 简化为字符串
+	Validation string        // 简化为字符串
+	Search     *SearchConfig // 搜索配置
 }
 
 // RunnerConfig runner标签配置 - 移除type字段
@@ -62,10 +63,15 @@ type CallbackConfig struct {
 	Params map[string]string
 }
 
+// SearchConfig search标签配置
+type SearchConfig struct {
+	Operators []string // 支持的操作符：eq, like, in, gte, lte, gt, lt, not_eq, not_in, not_like
+}
+
 // NewMultiTagParser 创建多标签解析器
 func NewMultiTagParser() *MultiTagParser {
 	return &MultiTagParser{
-		supportedTags: []string{"runner", "widget", "data", "permission", "callback", "validate"},
+		supportedTags: []string{"runner", "widget", "data", "permission", "callback", "validate", "search"},
 	}
 }
 
@@ -116,6 +122,10 @@ func (p *MultiTagParser) ParseStruct(structType reflect.Type) ([]*FieldConfig, e
 
 		if validateTag := field.Tag.Get("validate"); validateTag != "" {
 			config.Validation = validateTag // 直接返回字符串
+		}
+
+		if searchTag := field.Tag.Get("search"); searchTag != "" {
+			config.Search = p.parseSearchTag(searchTag)
 		}
 
 		fields = append(fields, config)
@@ -338,6 +348,23 @@ func (p *MultiTagParser) parseCallbackTag(tag string) []*CallbackConfig {
 	return callbacks
 }
 
+// parseSearchTag 解析search标签
+// 格式: eq,like,in,gte,lte,gt,lt,not_eq,not_in,not_like
+func (p *MultiTagParser) parseSearchTag(tag string) *SearchConfig {
+	config := &SearchConfig{}
+
+	// 按逗号分割操作符
+	operators := strings.Split(tag, ",")
+	for _, op := range operators {
+		op = strings.TrimSpace(op)
+		if op != "" {
+			config.Operators = append(config.Operators, op)
+		}
+	}
+
+	return config
+}
+
 // GetCode 获取字段代码
 func (f *FieldConfig) GetCode() string {
 	if f.Runner != nil && f.Runner.Code != "" {
@@ -386,7 +413,7 @@ func (f *FieldConfig) GetType() string {
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return "number"
 	case reflect.Float32, reflect.Float64:
-		return "number"
+		return "float"
 	case reflect.Bool:
 		return "boolean"
 	case reflect.Slice:
@@ -397,11 +424,13 @@ func (f *FieldConfig) GetType() string {
 			return "[]string" // 支持[]string类型
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			return "[]number"
+		case reflect.Struct:
+			return "[]struct" // 新增：结构体数组类型
 		default:
 			return "array"
 		}
 	case reflect.Map:
-		return "object"
+		return "struct"
 	case reflect.Struct:
 		// 检查是否是时间类型
 		if typeStr == "time.Time" {
@@ -411,7 +440,7 @@ func (f *FieldConfig) GetType() string {
 		if typeStr == "files.Writer" || typeStr == "files.Files" {
 			return "files"
 		}
-		return "object"
+		return "struct" // 新增：结构体类型
 	case reflect.Ptr:
 		// 处理指针类型
 		elemType := f.FieldType.Elem()
@@ -441,7 +470,7 @@ func (f *FieldConfig) getTypeFromReflectType(t reflect.Type) string {
 		if t.String() == "files.Files" || t.String() == "files.Writer" {
 			return "files"
 		}
-		return "object"
+		return "struct" // 新增：结构体类型
 	default:
 		return "string"
 	}
@@ -520,16 +549,7 @@ type DateTimeParser struct{}
 func (p *DateTimeParser) ParseConfig(key, value string) (interface{}, bool) {
 	switch key {
 	case "format":
-		// 验证格式是否有效
-		validFormats := map[string]bool{
-			"date": true, "datetime": true, "time": true,
-			"daterange": true, "datetimerange": true,
-			"month": true, "year": true, "week": true,
-		}
-		if validFormats[value] {
-			return value, true
-		}
-		return "date", true // 默认格式
+		return value, true // 默认格式
 	case "placeholder", "start_placeholder", "end_placeholder":
 		return value, true
 	case "default_value", "default_time", "min_date", "max_date", "separator":

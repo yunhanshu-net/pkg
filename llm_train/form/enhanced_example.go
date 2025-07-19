@@ -110,17 +110,6 @@ var EnhancedFormConfig = &runner.FunctionOptions{
 
 	RenderType: response.RenderTypeForm,
 
-	OnPageLoad: func(ctx *runner.Context, resp response.Response) (initData *usercall.OnPageLoadResp, err error) {
-		// 返回初始化数据
-		initData = &usercall.OnPageLoadResp{
-			Request: EnhancedFormReq{
-				Category: "类型1",
-			},
-			AutoRun: false,
-		}
-		return
-	},
-
 	OnApiCreated: func(ctx *runner.Context, req *usercall.OnApiCreatedReq) error {
 		logger.Infof(ctx, "增强表单示例API创建成功: %+v", req)
 		return nil

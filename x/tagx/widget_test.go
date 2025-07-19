@@ -185,3 +185,22 @@ func TestCompleteStructParsing(t *testing.T) {
 		}
 	}
 }
+
+type WorkflowDemoReq struct {
+	// 时间安排 - 演示不同时间格式的使用场景
+	StartDate    int64 `json:"start_date" form:"start_date" runner:"code:start_date;name:开始日期" widget:"type:datetime;kind:date;placeholder:请选择开始日期;min_date:$today;format:yyyy-MM-dd" data:"type:number;default_value:$today;example:1705292200000" validate:"required"`  // 业务日期：format指定只显示日期
+	DueDate      int64 `json:"due_date" form:"due_date" runner:"code:due_date;name:截止日期" widget:"type:datetime;kind:date;placeholder:请选择截止日期;min_date:$today;format:yyyy-MM-dd" data:"type:number;default_value:$7_days_later;example:1705897600000" validate:"required"` // 业务日期：format指定只显示日期
+	Birthday     int64 `json:"birthday" form:"birthday" runner:"code:birthday;name:团队成员生日" widget:"type:datetime;kind:date;placeholder:请选择生日;format:yyyy-MM-dd" data:"type:number;example:694224000000"`                                                                  // 生日：只显示日期，如1992-01-15
+	ClassEndTime int64 `json:"class_end_time" form:"class_end_time" runner:"code:class_end_time;name:培训结束时间" widget:"type:datetime;kind:time;placeholder:请选择结束时间;format:HH:mm" data:"type:number;example:1705309800000"`                                                  // 时间：只显示时间，如18:30
+	MeetingTime  int64 `json:"meeting_time" form:"meeting_time" runner:"code:meeting_time;name:会议时间" widget:"type:datetime;kind:datetime;placeholder:请选择会议时间" data:"type:number;example:1705467600000"`                                                                   // 默认格式：无format标签，显示完整日期时间
+}
+
+func TestName(t *testing.T) {
+	of := reflect.TypeOf(WorkflowDemoReq{})
+	fields, err := NewMultiTagParser().ParseStruct(of)
+	if err != nil {
+		t.Fatalf("Failed to parse struct: %v", err)
+	}
+	fmt.Println(fields)
+
+}
