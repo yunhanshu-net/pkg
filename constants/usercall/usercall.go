@@ -30,4 +30,8 @@ const (
 
 	// CallbackTypeOnDryRun 危险操作预览
 	CallbackTypeOnDryRun = "OnDryRun" // DryRun 预览
+
+	// CallbackTypeOnUpdateConfig 配置管理
+	CallbackTypeOnUpdateConfig = "OnUpdateConfig" // 更新配置
+	CallbackTypeOnGetConfig    = "OnGetConfig"    // 获取配置
 )
