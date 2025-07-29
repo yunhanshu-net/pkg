@@ -255,23 +255,32 @@ func parseInValues(input string) (map[string][]string, error) {
 	}
 
 	result := make(map[string][]string)
-	pairs := strings.Split(input, ",")
-
-	for i := 0; i < len(pairs); i++ {
-		parts := strings.Split(pairs[i], ":")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("参数格式错误：%s，应为 field:value 格式", pairs[i])
+	
+	// 查找第一个冒号的位置
+	colonIndex := strings.Index(input, ":")
+	if colonIndex == -1 {
+		return nil, fmt.Errorf("参数格式错误：%s，应为 field:value1,value2,value3 格式", input)
+	}
+	
+	// 提取字段名
+	field := strings.TrimSpace(input[:colonIndex])
+	if !SafeColumn(field) {
+		return nil, fmt.Errorf("无效的字段名：%s", field)
+	}
+	
+	// 提取值部分
+	valuesPart := strings.TrimSpace(input[colonIndex+1:])
+	if valuesPart == "" {
+		return nil, fmt.Errorf("参数格式错误：%s，值不能为空", input)
+	}
+	
+	// 按逗号分割值
+	values := strings.Split(valuesPart, ",")
+	for _, value := range values {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue != "" {
+			result[field] = append(result[field], trimmedValue)
 		}
-
-		field := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if !SafeColumn(field) {
-			return nil, fmt.Errorf("无效的字段名：%s", field)
-		}
-
-		// 将值添加到对应字段的切片中
-		result[field] = append(result[field], value)
 	}
 
 	return result, nil
@@ -332,7 +341,30 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 		}
 		// 构建最终的查询条件
 		for field, values := range allConditions {
-			*db = (*db).Where(field+" IN ?", values)
+			// 尝试将值转换为适当的类型
+			convertedValues := make([]interface{}, len(values))
+			hasBool := false
+			
+			for i, value := range values {
+				// 尝试转换为数字
+				if numValue, err := strconv.ParseInt(value, 10, 64); err == nil {
+					convertedValues[i] = numValue
+				} else if boolValue, err := strconv.ParseBool(value); err == nil {
+					// 尝试转换为布尔值
+					convertedValues[i] = boolValue
+					hasBool = true
+				} else {
+					// 保持为字符串
+					convertedValues[i] = value
+				}
+			}
+			
+			// 如果包含布尔值，使用布尔值查询
+			if hasBool {
+				*db = (*db).Where(field+" IN ?", convertedValues)
+			} else {
+				*db = (*db).Where(field+" IN ?", convertedValues)
+			}
 		}
 		return nil
 	}
@@ -355,7 +387,30 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 		}
 		// 构建最终的查询条件
 		for field, values := range allConditions {
-			*db = (*db).Where(field+" NOT IN ?", values)
+			// 尝试将值转换为适当的类型
+			convertedValues := make([]interface{}, len(values))
+			hasBool := false
+			
+			for i, value := range values {
+				// 尝试转换为数字
+				if numValue, err := strconv.ParseInt(value, 10, 64); err == nil {
+					convertedValues[i] = numValue
+				} else if boolValue, err := strconv.ParseBool(value); err == nil {
+					// 尝试转换为布尔值
+					convertedValues[i] = boolValue
+					hasBool = true
+				} else {
+					// 保持为字符串
+					convertedValues[i] = value
+				}
+			}
+			
+			// 如果包含布尔值，使用布尔值查询
+			if hasBool {
+				*db = (*db).Where(field+" NOT IN ?", convertedValues)
+			} else {
+				*db = (*db).Where(field+" NOT IN ?", convertedValues)
+			}
 		}
 		return nil
 	}
@@ -391,24 +446,36 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 					*db = (*db).Where(field+" <= ?", numValue)
 				}
 			} else {
-				// 如果不是数字，使用字符串比较
-				switch operator {
-				case "eq":
-					*db = (*db).Where(field+" = ?", value)
-				case "not_eq":
-					*db = (*db).Where(field+" != ?", value)
-				case "like":
-					*db = (*db).Where(field+" LIKE ?", "%"+value+"%")
-				case "not_like":
-					*db = (*db).Where(field+" NOT LIKE ?", "%"+value+"%")
-				case "gt":
-					*db = (*db).Where(field+" > ?", value)
-				case "gte":
-					*db = (*db).Where(field+" >= ?", value)
-				case "lt":
-					*db = (*db).Where(field+" < ?", value)
-				case "lte":
-					*db = (*db).Where(field+" <= ?", value)
+				// 尝试将值转换为布尔值
+				boolValue, err := strconv.ParseBool(value)
+				if err == nil {
+					// 如果是布尔值，使用布尔比较
+					switch operator {
+					case "eq":
+						*db = (*db).Where(field+" = ?", boolValue)
+					case "not_eq":
+						*db = (*db).Where(field+" != ?", boolValue)
+					}
+				} else {
+					// 如果不是布尔值，使用字符串比较
+					switch operator {
+					case "eq":
+						*db = (*db).Where(field+" = ?", value)
+					case "not_eq":
+						*db = (*db).Where(field+" != ?", value)
+					case "like":
+						*db = (*db).Where(field+" LIKE ?", "%"+value+"%")
+					case "not_like":
+						*db = (*db).Where(field+" NOT LIKE ?", "%"+value+"%")
+					case "gt":
+						*db = (*db).Where(field+" > ?", value)
+					case "gte":
+						*db = (*db).Where(field+" >= ?", value)
+					case "lt":
+						*db = (*db).Where(field+" < ?", value)
+					case "lte":
+						*db = (*db).Where(field+" <= ?", value)
+					}
 				}
 			}
 		}

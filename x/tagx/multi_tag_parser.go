@@ -128,6 +128,21 @@ func (p *MultiTagParser) ParseStruct(structType reflect.Type) ([]*FieldConfig, e
 			config.Search = p.parseSearchTag(searchTag)
 		}
 
+		// 自动推断字段类型并填充到 data.type
+		inferredType := InferType(field.Type)
+		if inferredType == "" {
+			// 类型不支持，跳过该字段
+			continue
+		}
+
+		// 确保 Data 配置存在
+		if config.Data == nil {
+			config.Data = &DataConfig{}
+		}
+		
+		// 自动设置推断的类型，用户无需手动指定
+		config.Data.Type = inferredType
+
 		fields = append(fields, config)
 	}
 
@@ -234,8 +249,8 @@ func (p *MultiTagParser) parseGenericValue(key, value string) interface{} {
 	return value
 }
 
-// parseDataTag 解析data标签 - 新增type字段
-// 格式: type:string;example:示例值;default_value:默认值;source:api://users;format:YYYY-MM-DD
+// parseDataTag 解析data标签 - 移除type字段，自动推断
+// 格式: example:示例值;default_value:默认值;source:api://users;format:YYYY-MM-DD
 func (p *MultiTagParser) parseDataTag(tag string) *DataConfig {
 	config := &DataConfig{}
 	parts := strings.Split(tag, ";")
@@ -247,8 +262,6 @@ func (p *MultiTagParser) parseDataTag(tag string) *DataConfig {
 			value := strings.TrimSpace(kv[1])
 
 			switch key {
-			case "type":
-				config.Type = value
 			case "example":
 				config.Example = value
 			case "default_value":
@@ -258,6 +271,7 @@ func (p *MultiTagParser) parseDataTag(tag string) *DataConfig {
 			case "format":
 				config.Format = value
 			}
+			// 注意：type 字段不再支持手动指定，由系统自动推断
 		}
 	}
 
@@ -391,90 +405,18 @@ func (f *FieldConfig) GetName() string {
 	return f.FieldName
 }
 
-// GetType 获取字段类型 - 支持复合类型，参考widget_value_type.go
+// GetType 获取字段类型 - 直接使用data标签中的type
 func (f *FieldConfig) GetType() string {
-	// 优先使用data标签中的type
+	// 直接使用data标签中的type，该字段在ParseStruct时已自动填充
 	if f.Data != nil && f.Data.Type != "" {
 		return f.Data.Type
 	}
-
-	// 根据Go类型推断，参考widget_value_type.go中的类型定义
-	typeStr := f.FieldType.String()
-
-	// 特殊类型检查（文件类型）
-	if typeStr == "*files.Files" || typeStr == "files.Files" || typeStr == "files.Writer" {
-		return "files"
-	}
-
-	switch f.FieldType.Kind() {
-	case reflect.String:
-		return "string"
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return "number"
-	case reflect.Float32, reflect.Float64:
-		return "float"
-	case reflect.Bool:
-		return "boolean"
-	case reflect.Slice:
-		// 支持切片类型
-		elemType := f.FieldType.Elem()
-		switch elemType.Kind() {
-		case reflect.String:
-			return "[]string" // 支持[]string类型
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			return "[]number"
-		case reflect.Struct:
-			return "[]struct" // 新增：结构体数组类型
-		default:
-			return "array"
-		}
-	case reflect.Map:
-		return "struct"
-	case reflect.Struct:
-		// 检查是否是时间类型
-		if typeStr == "time.Time" {
-			return "time"
-		}
-		// 检查是否是files相关类型
-		if typeStr == "files.Writer" || typeStr == "files.Files" {
-			return "files"
-		}
-		return "struct" // 新增：结构体类型
-	case reflect.Ptr:
-		// 处理指针类型
-		elemType := f.FieldType.Elem()
-		if elemType.String() == "files.Files" {
-			return "files"
-		}
-		// 递归处理指针指向的类型
-		return f.getTypeFromReflectType(elemType)
-	default:
-		return "string"
-	}
+	
+	// 兜底：如果data标签不存在，使用类型推断器
+	return InferType(f.FieldType)
 }
 
-// getTypeFromReflectType 辅助方法，处理reflect.Type的类型推断
-func (f *FieldConfig) getTypeFromReflectType(t reflect.Type) string {
-	switch t.Kind() {
-	case reflect.String:
-		return "string"
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return "number"
-	case reflect.Float32, reflect.Float64:
-		return "number"
-	case reflect.Bool:
-		return "boolean"
-	case reflect.Struct:
-		if t.String() == "files.Files" || t.String() == "files.Writer" {
-			return "files"
-		}
-		return "struct" // 新增：结构体类型
-	default:
-		return "string"
-	}
-}
+
 
 // FileUploadParser 文件上传组件配置解析器
 type FileUploadParser struct{}

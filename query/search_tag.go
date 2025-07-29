@@ -26,8 +26,6 @@ type WidgetConfig struct {
 	Prefix      string            `json:"prefix"`      // 前缀
 	Suffix      string            `json:"suffix"`      // 后缀
 	Format      string            `json:"format"`      // 格式
-	TrueValue   string            `json:"true_value"`  // 开关真值
-	FalseValue  string            `json:"false_value"` // 开关假值
 	Extra       map[string]string `json:"extra"`       // 额外配置
 }
 
@@ -352,10 +350,6 @@ func parseWidgetConfig(field reflect.StructField) *WidgetConfig {
 			config.Suffix = value
 		case "format":
 			config.Format = value
-		case "true_value":
-			config.TrueValue = value
-		case "false_value":
-			config.FalseValue = value
 		default:
 			config.Extra[key] = value
 		}

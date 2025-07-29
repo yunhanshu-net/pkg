@@ -646,3 +646,145 @@ func TestPageInfoReq_GetSorts(t *testing.T) {
 		})
 	}
 }
+
+// TestBooleanProduct 测试布尔值查询的产品模型
+type TestBooleanProduct struct {
+	ID       int    `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name     string `gorm:"column:name;comment:产品名称" json:"name"`
+	IsActive bool   `gorm:"column:is_active;comment:是否激活" json:"is_active"`
+	IsPublic bool   `gorm:"column:is_public;comment:是否公开" json:"is_public"`
+}
+
+func (TestBooleanProduct) TableName() string {
+	return "test_boolean_products"
+}
+
+// TestBooleanQuery 测试布尔值查询
+func TestBooleanQuery(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+
+	t.Log("=== 测试布尔值查询 ===")
+
+	// 自动迁移
+	err := db.AutoMigrate(&TestBooleanProduct{})
+	if err != nil {
+		t.Fatalf("数据库迁移失败: %v", err)
+	}
+
+	// 插入测试数据
+	testData := []TestBooleanProduct{
+		{Name: "产品A", IsActive: true, IsPublic: true},
+		{Name: "产品B", IsActive: true, IsPublic: false},
+		{Name: "产品C", IsActive: false, IsPublic: true},
+		{Name: "产品D", IsActive: false, IsPublic: false},
+	}
+
+	for _, product := range testData {
+		if err := db.Create(&product).Error; err != nil {
+			t.Fatalf("插入测试数据失败: %v", err)
+		}
+	}
+
+	// 测试布尔值等于查询
+	pageInfo := &PageInfoReq{
+		Page:     1,
+		PageSize: 10,
+		Eq:       []string{"is_active:true"},
+	}
+
+	var products []TestBooleanProduct
+	result, err := AutoPaginateTable(ctx, db, &TestBooleanProduct{}, &products, pageInfo)
+	if err != nil {
+		t.Fatalf("布尔值查询失败: %v", err)
+	}
+
+	t.Logf("is_active=true 的产品数量: %d", result.TotalCount)
+	for i, product := range products {
+		t.Logf("[%d] %s - IsActive: %v", i+1, product.Name, product.IsActive)
+		if !product.IsActive {
+			t.Errorf("查询结果错误: 期望 IsActive 为 true, 实际: %v", product.IsActive)
+		}
+	}
+
+	// 测试布尔值不等于查询
+	pageInfo.Eq = []string{"is_active:false"}
+	products = []TestBooleanProduct{} // 重置切片
+	result, err = AutoPaginateTable(ctx, db, &TestBooleanProduct{}, &products, pageInfo)
+	if err != nil {
+		t.Fatalf("布尔值不等于查询失败: %v", err)
+	}
+
+	t.Logf("is_active=false 的产品数量: %d", result.TotalCount)
+	for i, product := range products {
+		t.Logf("[%d] %s - IsActive: %v", i+1, product.Name, product.IsActive)
+		if product.IsActive {
+			t.Errorf("查询结果错误: 期望 IsActive 为 false, 实际: %v", product.IsActive)
+		}
+	}
+
+	// 测试多个布尔条件
+	pageInfo.Eq = []string{"is_active:true", "is_public:false"}
+	products = []TestBooleanProduct{} // 重置切片
+	result, err = AutoPaginateTable(ctx, db, &TestBooleanProduct{}, &products, pageInfo)
+	if err != nil {
+		t.Fatalf("多布尔条件查询失败: %v", err)
+	}
+
+	t.Logf("is_active=true 且 is_public=false 的产品数量: %d", result.TotalCount)
+	for i, product := range products {
+		t.Logf("[%d] %s - IsActive: %v, IsPublic: %v", i+1, product.Name, product.IsActive, product.IsPublic)
+		if !product.IsActive || product.IsPublic {
+			t.Errorf("查询结果错误: 期望 IsActive=true 且 IsPublic=false, 实际: IsActive=%v, IsPublic=%v", 
+				product.IsActive, product.IsPublic)
+		}
+	}
+
+	// 测试IN查询 - 布尔值
+	t.Log("测试IN查询 - 布尔值")
+	var inResults []TestBooleanProduct
+	inPageInfo := &PageInfoReq{
+		Page:     1,
+		PageSize: 10,
+		In:       []string{"is_active:true,false"},
+	}
+	
+	inResult, err := AutoPaginateTable(ctx, db, &TestBooleanProduct{}, &inResults, inPageInfo)
+	if err != nil {
+		t.Fatalf("IN查询失败: %v", err)
+	}
+	
+	if inResult.TotalCount != 4 {
+		t.Errorf("IN查询结果数量错误: 期望4，实际%d", inResult.TotalCount)
+	}
+	
+	// 验证所有结果都包含在查询条件中
+	for _, product := range inResults {
+		if product.IsActive != true && product.IsActive != false {
+			t.Errorf("IN查询结果包含无效的布尔值: %v", product.IsActive)
+		}
+	}
+	
+	// 测试NOT IN查询 - 布尔值
+	t.Log("测试NOT IN查询 - 布尔值")
+	var notInResults []TestBooleanProduct
+	notInPageInfo := &PageInfoReq{
+		Page:     1,
+		PageSize: 10,
+		NotIn:    []string{"is_public:false"},
+	}
+	
+	_, err = AutoPaginateTable(ctx, db, &TestBooleanProduct{}, &notInResults, notInPageInfo)
+	if err != nil {
+		t.Fatalf("NOT IN查询失败: %v", err)
+	}
+	
+	// 验证所有结果都不等于false
+	for _, product := range notInResults {
+		if product.IsPublic == false {
+			t.Errorf("NOT IN查询结果包含被排除的值: %v", product.IsPublic)
+		}
+	}
+
+	t.Log("布尔值查询测试通过")
+}

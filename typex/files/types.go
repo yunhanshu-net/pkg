@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/yunhanshu-net/pkg/typex"
@@ -38,60 +37,6 @@ type File struct {
 	// 内部状态字段
 	uploaded    bool `json:"-"` // 是否已上传
 	localCached bool `json:"-"` // 是否为本地缓存文件
-}
-
-// 注意：Files 类型已移动到 files.go 中，现在是一个增强的文件集合对象
-
-// FileList 文件列表类型，用于API请求参数
-type FileList []*File
-
-// ToReader 转换为Reader接口
-func (f FileList) ToReader(ctx context.Context) Reader {
-	reader := NewURLReader(ctx)
-	for _, file := range f {
-		reader.AddFileFromURL(file.URL, file.Name)
-	}
-	return reader
-}
-
-// ToWriter 转换为Writer接口
-func (f FileList) ToWriter(ctx context.Context) Writer {
-	writer := NewCloudWriter(ctx)
-	for _, file := range f {
-		writer.AddFile(file.LocalPath)
-	}
-	return writer
-}
-
-// GetTotalSize 获取所有文件的总大小
-func (f FileList) GetTotalSize() int64 {
-	var total int64
-	for _, file := range f {
-		total += file.Size
-	}
-	return total
-}
-
-// FilterByType 按文件类型过滤
-func (f FileList) FilterByType(contentType string) FileList {
-	var result FileList
-	for _, file := range f {
-		if file.ContentType == contentType {
-			result = append(result, file)
-		}
-	}
-	return result
-}
-
-// FilterByExtension 按文件扩展名过滤
-func (f FileList) FilterByExtension(ext string) FileList {
-	var result FileList
-	for _, file := range f {
-		if strings.HasSuffix(strings.ToLower(file.Name), strings.ToLower(ext)) {
-			result = append(result, file)
-		}
-	}
-	return result
 }
 
 // ToUploadFile 转换为上传文件

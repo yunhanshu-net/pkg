@@ -184,8 +184,9 @@ func TestGenerateSearchFormConfig(t *testing.T) {
 			}
 
 		case "status":
-			if field.Widget.TrueValue != "启用" {
-				t.Errorf("status字段真值应为启用，实际: %s", field.Widget.TrueValue)
+			// 布尔值字段不需要检查TrueValue，因为布尔值本身就是true/false
+			if field.Widget.Type != "switch" {
+				t.Errorf("status字段类型应为switch，实际: %s", field.Widget.Type)
 			}
 		}
 	}
