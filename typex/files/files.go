@@ -639,7 +639,7 @@ func getFileExtension(filename string) string {
 //
 // type Task struct {
 //     ID        uint           `gorm:"primarykey"`
-//     Name      string         `gorm:"column:name;comment:任务名称"`
+//     CnName      string         `gorm:"column:name;comment:任务名称"`
 //     Files     *Files         `gorm:"type:json;column:files;comment:任务文件"`
 //     CreatedAt time.Time
 //     UpdatedAt time.Time
@@ -648,7 +648,7 @@ func getFileExtension(filename string) string {
 // 使用方法:
 // func CreateTask(db *gorm.DB, name string, files *Files) error {
 //     task := &Task{
-//         Name:  name,
+//         CnName:  name,
 //         Files: files,
 //     }
 //     return db.Create(task).Error

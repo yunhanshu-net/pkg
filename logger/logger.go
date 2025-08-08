@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/yunhanshu-net/pkg/trace"
 )
 
 // 常量定义
@@ -192,12 +193,41 @@ func extractTraceID(ctx context.Context) string {
 	return DefaultTraceID
 }
 
-// 在日志字段中添加trace_id
+// 在日志字段中添加trace_id和其他上下文信息
 func withTraceID(ctx context.Context, fields []zap.Field) []zap.Field {
-	traceID := extractTraceID(ctx)
-	if traceID != DefaultTraceID {
-		fields = append(fields, zap.String(TraceIDKey, traceID))
+	if ctx == nil {
+		return fields
 	}
+
+	// 优先从trace.FunctionMsg中获取完整的上下文信息
+	if value := ctx.Value(trace.FunctionMsgKey); value != nil {
+		if functionMsg, ok := value.(*trace.FunctionMsg); ok {
+			// 使用ToLogMap方法获取所有需要的日志字段
+			contextMap := functionMsg.ToLogMap()
+			if contextMap != nil {
+				// 遍历所有字段并添加到日志中
+				for fieldName, value := range contextMap {
+					if strValue, ok := value.(string); ok && strValue != "" {
+						// trace_id使用特殊的键名
+						if fieldName == "trace_id" {
+							fields = append(fields, zap.String(TraceIDKey, strValue))
+						} else {
+							fields = append(fields, zap.String(fieldName, strValue))
+						}
+					}
+				}
+			}
+			return fields
+		}
+	}
+
+	// 兜底：从原有的TraceIDKey中获取
+	if value := ctx.Value(TraceIDKey); value != nil {
+		if traceID, ok := value.(string); ok && traceID != "" {
+			fields = append(fields, zap.String(TraceIDKey, traceID))
+		}
+	}
+
 	return fields
 }
 
@@ -300,4 +330,67 @@ func ErrorContextf(ctx context.Context, format string, args ...interface{}) {
 // FatalContextf 带上下文的格式化Fatal日志
 func FatalContextf(ctx context.Context, format string, args ...interface{}) {
 	Fatalf(ctx, format, args...)
+}
+
+// ===== 以下是专门用于封装场景的日志方法，会额外跳过一层调用栈 =====
+
+// DebugWrapped 封装场景的Debug日志（额外跳过一层调用栈）
+func DebugWrapped(ctx context.Context, msg string, fields ...zap.Field) {
+	logger.WithOptions(zap.AddCallerSkip(1)).Debug(msg, withTraceID(ctx, fields)...)
+}
+
+// DebugfWrapped 封装场景的格式化Debug日志（额外跳过一层调用栈）
+func DebugfWrapped(ctx context.Context, format string, args ...interface{}) {
+	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
+	logger.WithOptions(zap.AddCallerSkip(1)).Debug("", withTraceID(ctx, fields)...)
+}
+
+// InfoWrapped 封装场景的Info日志（额外跳过一层调用栈）
+func InfoWrapped(ctx context.Context, msg string, fields ...zap.Field) {
+	logger.WithOptions(zap.AddCallerSkip(1)).Info(msg, withTraceID(ctx, fields)...)
+}
+
+// InfofWrapped 封装场景的格式化Info日志（额外跳过一层调用栈）
+func InfofWrapped(ctx context.Context, format string, args ...interface{}) {
+	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
+	logger.WithOptions(zap.AddCallerSkip(1)).Info("", withTraceID(ctx, fields)...)
+}
+
+// WarnWrapped 封装场景的Warn日志（额外跳过一层调用栈）
+func WarnWrapped(ctx context.Context, msg string, fields ...zap.Field) {
+	logger.WithOptions(zap.AddCallerSkip(1)).Warn(msg, withTraceID(ctx, fields)...)
+}
+
+// WarnfWrapped 封装场景的格式化Warn日志（额外跳过一层调用栈）
+func WarnfWrapped(ctx context.Context, format string, args ...interface{}) {
+	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
+	logger.WithOptions(zap.AddCallerSkip(1)).Warn("", withTraceID(ctx, fields)...)
+}
+
+// ErrorWrapped 封装场景的Error日志（额外跳过一层调用栈）
+func ErrorWrapped(ctx context.Context, msg string, err error, fields ...zap.Field) {
+	if err != nil {
+		fields = append(fields, zap.Error(err))
+	}
+	logger.WithOptions(zap.AddCallerSkip(1)).Error(msg, withTraceID(ctx, fields)...)
+}
+
+// ErrorfWrapped 封装场景的格式化Error日志（额外跳过一层调用栈）
+func ErrorfWrapped(ctx context.Context, format string, args ...interface{}) {
+	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
+	logger.WithOptions(zap.AddCallerSkip(1)).Error("", withTraceID(ctx, fields)...)
+}
+
+// FatalWrapped 封装场景的Fatal日志（额外跳过一层调用栈）
+func FatalWrapped(ctx context.Context, msg string, err error, fields ...zap.Field) {
+	if err != nil {
+		fields = append(fields, zap.Error(err))
+	}
+	logger.WithOptions(zap.AddCallerSkip(1)).Fatal(msg, withTraceID(ctx, fields)...)
+}
+
+// FatalfWrapped 封装场景的格式化Fatal日志（额外跳过一层调用栈）
+func FatalfWrapped(ctx context.Context, format string, args ...interface{}) {
+	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
+	logger.WithOptions(zap.AddCallerSkip(1)).Fatal("", withTraceID(ctx, fields)...)
 }

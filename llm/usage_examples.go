@@ -255,7 +255,7 @@ err := llm.ChatWithStringResult(ctx, llm.ProviderDeepSeek, "解释Go语言的特
 
 // 方式B: JSON结构体结果  
 type UserInfo struct {
-    Name string ` + "`json:\"name\"`" + `
+    CnName string ` + "`json:\"name\"`" + `
     Age  int    ` + "`json:\"age\"`" + `
 }
 var user UserInfo

@@ -28,6 +28,48 @@ func (f *FunctionMsg) GetUploadPath() string {
 	return strings.ReplaceAll(s, "//", "/")
 }
 
+// ToMap 返回FunctionMsg的字段作为map，方便日志系统使用
+// includeFields: 指定要包含的字段，如果为空则返回所有字段
+func (f *FunctionMsg) ToMap(includeFields ...string) map[string]interface{} {
+	if f == nil {
+		return nil
+	}
+	
+	// 定义所有可用字段
+	allFields := map[string]interface{}{
+		"trace_id": f.TraceID,
+		"method":   f.Method,
+		"router":   f.Router,
+		"user":     f.User,
+		"version":  f.Version,
+		"runner":   f.Runner,
+		// UploadConfig相关字段（如果需要的话）
+		// "upload_provider": f.UploadConfig.Provider,
+		// "upload_bucket":   f.UploadConfig.Bucket,
+	}
+	
+	// 如果没有指定字段，返回所有字段
+	if len(includeFields) == 0 {
+		return allFields
+	}
+	
+	// 如果指定了字段，只返回指定的字段
+	result := make(map[string]interface{})
+	for _, fieldName := range includeFields {
+		if value, exists := allFields[fieldName]; exists {
+			result[fieldName] = value
+		}
+	}
+	
+	return result
+}
+
+// ToLogMap 专门为日志系统提供的方法，返回适合日志的字段
+func (f *FunctionMsg) ToLogMap() map[string]interface{} {
+	// 返回完整的日志字段，包含 router、method 等参数
+	return f.ToMap("trace_id", "method", "router", "user", "version", "runner")
+}
+
 type UploadConfig struct {
 	UploadDomain   string `json:"upload_domain"`   //上传地址
 	DownloadDomain string `json:"download_domain"` //上传后下载的域名

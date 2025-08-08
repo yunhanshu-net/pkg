@@ -9,7 +9,7 @@ package dev
 - Type: string (固定类型，对应Go类型系统)
 - Widget: string (组件类型，固定为"color")
 - Code: string (字段标识)
-- Name: string (显示名称)
+- CnName: string (显示名称)
 - Required: bool (是否必填)
 
 ColorWidget结构体只需要定义组件特有的配置参数。
@@ -277,4 +277,3 @@ TextColor string `runner:"code:text_color;name:文字颜色;type:string;widget:c
 预计总工期：2天
 核心优势：类型系统一致性，widget语义清晰，颜色格式完整支持
 */
- 

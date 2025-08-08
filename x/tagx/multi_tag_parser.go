@@ -139,7 +139,7 @@ func (p *MultiTagParser) ParseStruct(structType reflect.Type) ([]*FieldConfig, e
 		if config.Data == nil {
 			config.Data = &DataConfig{}
 		}
-		
+
 		// 自动设置推断的类型，用户无需手动指定
 		config.Data.Type = inferredType
 
@@ -411,12 +411,10 @@ func (f *FieldConfig) GetType() string {
 	if f.Data != nil && f.Data.Type != "" {
 		return f.Data.Type
 	}
-	
+
 	// 兜底：如果data标签不存在，使用类型推断器
 	return InferType(f.FieldType)
 }
-
-
 
 // FileUploadParser 文件上传组件配置解析器
 type FileUploadParser struct{}

@@ -9,7 +9,7 @@ package dev
 - Type: string (固定类型，对应Go类型系统)
 - Widget: string (组件类型，固定为"datetime")
 - Code: string (字段标识)
-- Name: string (显示名称)
+- CnName: string (显示名称)
 - Required: bool (是否必填)
 
 DateTimeWidget结构体只需要定义组件特有的配置参数。

@@ -653,7 +653,7 @@ func NewUserService(userRepo *repo.UserRepo) *UserService {
 
 func (s *UserService) CreateUser(ctx context.Context, req *dto.CreateUserReq) (*dto.CreateUserResp, error) {
 	user := &model.User{
-		Name:  req.Name,
+		CnName:  req.CnName,
 		Email: req.Email,
 		User:  req.User,
 	}
@@ -673,7 +673,7 @@ import "github.com/yunhanshu-net/pkg/model"
 
 type User struct {
 	model.Base
-	Name     string ` + "`json:\"name\" gorm:\"column:name;comment:用户名\"`" + `
+	CnName     string ` + "`json:\"name\" gorm:\"column:name;comment:用户名\"`" + `
 	Email    string ` + "`json:\"email\" gorm:\"column:email;comment:邮箱\"`" + `
 	Phone    string ` + "`json:\"phone\" gorm:\"column:phone;comment:手机号\"`" + `
 	Status   int    ` + "`json:\"status\" gorm:\"column:status;comment:状态 1正常 2禁用\"`" + `

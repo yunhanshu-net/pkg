@@ -10,7 +10,7 @@ package dev
 - Widget: string (组件类型，固定为"checkbox")
 - Required: bool (是否必选至少一项)
 - Code: string (字段标识)
-- Name: string (显示名称)
+- CnName: string (显示名称)
 
 CheckboxWidget结构体只需要定义组件特有的配置参数。
 */

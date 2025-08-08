@@ -12,7 +12,7 @@ Callback标签是完全独立的标签，与runner标签分离：
 - Widget: string (组件类型，如multiselect、select等)
 - Required: bool (是否必选)
 - Code: string (字段标识)
-- Name: string (显示名称)
+- CnName: string (显示名称)
 
 Callback标签职责：
 - 专门处理动态交互逻辑
@@ -417,4 +417,3 @@ Callback标签的核心价值：
 
 Callback标签是组件动态交互的核心，通过合理配置可以实现丰富的用户交互体验。
 */
- 

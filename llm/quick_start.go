@@ -29,7 +29,7 @@ func QuickStartExample() {
 2. 定义结构体模板（推荐方式）：
 
 	type UserInfo struct {
-		Name     string   ` + "`json:\"name\" description:\"用户姓名\"`" + `
+		CnName     string   ` + "`json:\"name\" description:\"用户姓名\"`" + `
 		Age      int      ` + "`json:\"age\" description:\"用户年龄\"`" + `
 		Email    string   ` + "`json:\"email\" description:\"邮箱地址\"`" + `
 		Hobbies  []string ` + "`json:\"hobbies,omitempty\" description:\"兴趣爱好\"`" + `
