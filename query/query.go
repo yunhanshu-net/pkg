@@ -26,17 +26,17 @@ type PageInfoReq struct {
 
 	Keyword string `json:"keyword" form:"keyword" runner:"search_cond;keyword"`
 	// 查询条件
-	Eq   []string `form:"eq" runner:"search_cond;code:like"`   // 格式：field:value
-	Like []string `form:"like" runner:"search_cond;code:like"` // 格式：field:value
-	In   []string `form:"in" runner:"search_cond;code:in"`     // 格式：field:value
-	Gt   []string `form:"gt" runner:"search_cond;code:gt"`     // 格式：field:value
-	Gte  []string `form:"gte" runner:"search_cond;code:gte"`   // 格式：field:value
-	Lt   []string `form:"lt" runner:"search_cond;code:lt"`     // 格式：field:value
-	Lte  []string `form:"lte" runner:"search_cond;code:lte"`   // 格式：field:value
+	Eq   []string `form:"eq" json:"eq" runner:"search_cond;code:like"`     // 格式：field:value
+	Like []string `form:"like" json:"like" runner:"search_cond;code:like"` // 格式：field:value
+	In   []string `form:"in" json:"in" runner:"search_cond;code:in"`       // 格式：field:value
+	Gt   []string `form:"gt" json:"gt" runner:"search_cond;code:gt"`       // 格式：field:value
+	Gte  []string `form:"gte" json:"gte" runner:"search_cond;code:gte"`    // 格式：field:value
+	Lt   []string `form:"lt" json:"lt" runner:"search_cond;code:lt"`       // 格式：field:value
+	Lte  []string `form:"lte" json:"lte" runner:"search_cond;code:lte"`    // 格式：field:value
 	// 否定查询条件
-	NotEq   []string `form:"not_eq" runner:"search_cond;code:not_eq"`     // 格式：field:value
-	NotLike []string `form:"not_like" runner:"search_cond;code:not_like"` // 格式：field:value
-	NotIn   []string `form:"not_in" runner:"search_cond;code:not_in"`     // 格式：field:value
+	NotEq   []string `form:"not_eq" json:"not_eq" runner:"search_cond;code:not_eq"`       // 格式：field:value
+	NotLike []string `form:"not_like" json:"not_like" runner:"search_cond;code:not_like"` // 格式：field:value
+	NotIn   []string `form:"not_in" json:"not_in" runner:"search_cond;code:not_in"`       // 格式：field:value
 }
 
 // normalizeSortField 标准化排序字段格式
@@ -162,10 +162,12 @@ func (i *PageInfoReq) GetLimit(defaultSize ...int) int {
 
 // GetOffset 获取分页偏移量
 func (i *PageInfoReq) GetOffset() int {
-	if i.Page < 1 {
-		i.Page = 1
+	page := i.Page
+	if page < 1 {
+		page = 1
 	}
-	return (i.Page - 1) * i.GetLimit()
+	offset := (page - 1) * i.GetLimit()
+	return offset
 }
 
 // SafeColumn 检查列名是否安全（防SQL注入）
@@ -255,25 +257,23 @@ func parseInValues(input string) (map[string][]string, error) {
 	}
 
 	result := make(map[string][]string)
-	
+
 	// 查找第一个冒号的位置
 	colonIndex := strings.Index(input, ":")
 	if colonIndex == -1 {
 		return nil, fmt.Errorf("参数格式错误：%s，应为 field:value1,value2,value3 格式", input)
 	}
-	
 	// 提取字段名
 	field := strings.TrimSpace(input[:colonIndex])
 	if !SafeColumn(field) {
 		return nil, fmt.Errorf("无效的字段名：%s", field)
 	}
-	
 	// 提取值部分
 	valuesPart := strings.TrimSpace(input[colonIndex+1:])
 	if valuesPart == "" {
 		return nil, fmt.Errorf("参数格式错误：%s，值不能为空", input)
 	}
-	
+
 	// 按逗号分割值
 	values := strings.Split(valuesPart, ",")
 	for _, value := range values {
@@ -344,7 +344,7 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 			// 尝试将值转换为适当的类型
 			convertedValues := make([]interface{}, len(values))
 			hasBool := false
-			
+
 			for i, value := range values {
 				// 尝试转换为数字
 				if numValue, err := strconv.ParseInt(value, 10, 64); err == nil {
@@ -358,7 +358,7 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 					convertedValues[i] = value
 				}
 			}
-			
+
 			// 如果包含布尔值，使用布尔值查询
 			if hasBool {
 				*db = (*db).Where(field+" IN ?", convertedValues)
@@ -390,7 +390,7 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 			// 尝试将值转换为适当的类型
 			convertedValues := make([]interface{}, len(values))
 			hasBool := false
-			
+
 			for i, value := range values {
 				// 尝试转换为数字
 				if numValue, err := strconv.ParseInt(value, 10, 64); err == nil {
@@ -404,7 +404,7 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 					convertedValues[i] = value
 				}
 			}
-			
+
 			// 如果包含布尔值，使用布尔值查询
 			if hasBool {
 				*db = (*db).Where(field+" NOT IN ?", convertedValues)
@@ -427,54 +427,61 @@ func validateAndBuildCondition(db **gorm.DB, inputs []string, operator string, c
 				return err
 			}
 
-			// 尝试将值转换为数字
-			numValue, err := strconv.ParseInt(value, 10, 64)
-			if err == nil {
-				// 如果是数字，使用数字比较
+			// 对于 like 和 not_like 操作符，始终使用字符串比较
+			if operator == "like" || operator == "not_like" {
+				// 使用字符串比较
 				switch operator {
-				case "eq":
-					*db = (*db).Where(field+" = ?", numValue)
-				case "not_eq":
-					*db = (*db).Where(field+" != ?", numValue)
-				case "gt":
-					*db = (*db).Where(field+" > ?", numValue)
-				case "gte":
-					*db = (*db).Where(field+" >= ?", numValue)
-				case "lt":
-					*db = (*db).Where(field+" < ?", numValue)
-				case "lte":
-					*db = (*db).Where(field+" <= ?", numValue)
+				case "like":
+					*db = (*db).Where(field+" LIKE ?", "%"+value+"%")
+				case "not_like":
+					*db = (*db).Where(field+" NOT LIKE ?", "%"+value+"%")
 				}
 			} else {
-				// 尝试将值转换为布尔值
-				boolValue, err := strconv.ParseBool(value)
+				// 尝试将值转换为数字
+				numValue, err := strconv.ParseInt(value, 10, 64)
 				if err == nil {
-					// 如果是布尔值，使用布尔比较
+					// 如果是数字，使用数字比较
 					switch operator {
 					case "eq":
-						*db = (*db).Where(field+" = ?", boolValue)
+						*db = (*db).Where(field+" = ?", numValue)
 					case "not_eq":
-						*db = (*db).Where(field+" != ?", boolValue)
+						*db = (*db).Where(field+" != ?", numValue)
+					case "gt":
+						*db = (*db).Where(field+" > ?", numValue)
+					case "gte":
+						*db = (*db).Where(field+" >= ?", numValue)
+					case "lt":
+						*db = (*db).Where(field+" < ?", numValue)
+					case "lte":
+						*db = (*db).Where(field+" <= ?", numValue)
 					}
 				} else {
-					// 如果不是布尔值，使用字符串比较
-					switch operator {
-					case "eq":
-						*db = (*db).Where(field+" = ?", value)
-					case "not_eq":
-						*db = (*db).Where(field+" != ?", value)
-					case "like":
-						*db = (*db).Where(field+" LIKE ?", "%"+value+"%")
-					case "not_like":
-						*db = (*db).Where(field+" NOT LIKE ?", "%"+value+"%")
-					case "gt":
-						*db = (*db).Where(field+" > ?", value)
-					case "gte":
-						*db = (*db).Where(field+" >= ?", value)
-					case "lt":
-						*db = (*db).Where(field+" < ?", value)
-					case "lte":
-						*db = (*db).Where(field+" <= ?", value)
+					// 尝试将值转换为布尔值
+					boolValue, err := strconv.ParseBool(value)
+					if err == nil {
+						// 如果是布尔值，使用布尔比较
+						switch operator {
+						case "eq":
+							*db = (*db).Where(field+" = ?", boolValue)
+						case "not_eq":
+							*db = (*db).Where(field+" != ?", boolValue)
+						}
+					} else {
+						// 如果不是布尔值，使用字符串比较
+						switch operator {
+						case "eq":
+							*db = (*db).Where(field+" = ?", value)
+						case "not_eq":
+							*db = (*db).Where(field+" != ?", value)
+						case "gt":
+							*db = (*db).Where(field+" > ?", value)
+						case "gte":
+							*db = (*db).Where(field+" >= ?", value)
+						case "lt":
+							*db = (*db).Where(field+" < ?", value)
+						case "lte":
+							*db = (*db).Where(field+" <= ?", value)
+						}
 					}
 				}
 			}
@@ -497,8 +504,11 @@ func AutoPaginateTable[T any](
 		pageInfo = new(PageInfoReq)
 	}
 
-	// 构建查询条件
-	if err := buildWhereConditions(&db, pageInfo, configs...); err != nil {
+	// 修复：克隆数据库连接，避免污染原始连接
+	dbClone := db.Session(&gorm.Session{})
+
+	// 构建查询条件到克隆的连接
+	if err := buildWhereConditions(&dbClone, pageInfo, configs...); err != nil {
 		return nil, err
 	}
 
@@ -508,18 +518,18 @@ func AutoPaginateTable[T any](
 
 	// 查询总数
 	var totalCount int64
-	if err := db.Model(model).Count(&totalCount).Error; err != nil {
+	if err := dbClone.Model(model).Count(&totalCount).Error; err != nil {
 		return nil, fmt.Errorf("分页查询统计总数失败: %w", err)
 	}
 
 	// 应用排序条件
 	sortStr := pageInfo.GetSorts()
 	if sortStr != "" {
-		db = db.Order(sortStr)
+		dbClone = dbClone.Order(sortStr)
 	}
 
 	// 查询当前页数据
-	if err := db.Offset(offset).Limit(pageSize).Find(data).Error; err != nil {
+	if err := dbClone.Offset(offset).Limit(pageSize).Find(data).Error; err != nil {
 		return nil, fmt.Errorf("分页查询数据失败: %w", err)
 	}
 
@@ -562,14 +572,20 @@ func ApplySearchConditions(db *gorm.DB, pageInfo *PageInfoReq, configs ...*Query
 		return db, nil
 	}
 
-	// 应用搜索条件
-	var dbPtr *gorm.DB = db
+	// 修复：克隆数据库连接，避免污染原始连接
+	// 因为buildWhereConditions会直接修改传入的db指针，所以需要先克隆
+	dbClone := db.Session(&gorm.Session{})
+
+	// 应用搜索条件到克隆的连接
+	var dbPtr *gorm.DB = dbClone
 	err := buildWhereConditions(&dbPtr, pageInfo, configs...)
 	if err != nil {
 		return db, err
 	}
 
-	return dbPtr, nil
+	// 再次克隆，确保返回的连接完全独立
+	finalDB := dbPtr.Session(&gorm.Session{})
+	return finalDB, nil
 }
 
 // SimplePaginate 简单分页查询（公开方法）

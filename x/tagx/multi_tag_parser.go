@@ -91,6 +91,10 @@ func (p *MultiTagParser) ParseStruct(structType reflect.Type) ([]*FieldConfig, e
 		if runnerTag := field.Tag.Get("runner"); runnerTag == "-" {
 			continue
 		}
+		// 检查jsonTag标签，如果是"-"则跳过该字段
+		if jsonTag := field.Tag.Get("json"); jsonTag == "-" {
+			continue
+		}
 
 		config := &FieldConfig{
 			FieldName: field.Name,
@@ -553,6 +557,9 @@ func (p *MultiSelectParser) ParseConfig(key, value string) (interface{}, bool) {
 		return []string{}, true
 	case "placeholder":
 		// 占位符文本
+		return value, true
+
+	case "separator":
 		return value, true
 	case "multiple_limit":
 		// 最大选择数量

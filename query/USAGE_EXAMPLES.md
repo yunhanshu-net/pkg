@@ -80,7 +80,7 @@ func GetProductsWithPermission(db *gorm.DB, pageInfo *query.PageInfoReq, userID 
     // 允许的搜索字段和操作符
     config.AllowField("name", "like", "not_like")
     config.AllowField("category", "eq", "in", "not_eq", "not_in")
-    config.AllowField("price", "gte", "lte", "eq")
+    config.AllowField("price", "gte", "lte", "eq", "gt", "lt")
     config.AllowField("status", "eq", "not_eq")
     
     // 禁止搜索敏感字段
@@ -165,18 +165,62 @@ GET /products?like=name:iPhone&eq=status:启用&gte=price:5000&sorts=price:DESC
 
 ## 搜索操作符详解
 
-| 操作符 | 说明 | 示例 | SQL等价 |
-|--------|------|------|---------|
-| `eq` | 精确匹配 | `eq=status:启用` | `status = '启用'` |
-| `like` | 模糊匹配 | `like=name:iPhone` | `name LIKE '%iPhone%'` |
-| `in` | 包含查询 | `in=category:手机&in=category:平板` | `category IN ('手机', '平板')` |
-| `gt` | 大于 | `gt=price:1000` | `price > 1000` |
-| `gte` | 大于等于 | `gte=price:1000` | `price >= 1000` |
-| `lt` | 小于 | `lt=price:5000` | `price < 5000` |
-| `lte` | 小于等于 | `lte=price:5000` | `price <= 5000` |
-| `not_eq` | 不等于 | `not_eq=status:禁用` | `status != '禁用'` |
-| `not_like` | 否定模糊匹配 | `not_like=name:测试` | `name NOT LIKE '%测试%'` |
-| `not_in` | 否定包含查询 | `not_in=category:其他` | `category NOT IN ('其他')` |
+| 操作符 | 说明 | 示例 | SQL等价 | 适用字段类型 |
+|--------|------|------|---------|-------------|
+| `eq` | 精确匹配 | `eq=status:启用` | `status = '启用'` | 字符串、数字、布尔值 |
+| `like` | 模糊匹配 | `like=name:iPhone` | `name LIKE '%iPhone%'` | 字符串 |
+| `in` | 包含查询 | `in=category:手机&in=category:平板` | `category IN ('手机', '平板')` | 字符串、数字 |
+| `gt` | 大于 | `gt=price:1000` | `price > 1000` | 数字、时间戳 |
+| `gte` | 大于等于 | `gte=price:1000` | `price >= 1000` | 数字、时间戳 |
+| `lt` | 小于 | `lt=price:5000` | `price < 5000` | 数字、时间戳 |
+| `lte` | 小于等于 | `lte=price:5000` | `price <= 5000` | 数字、时间戳 |
+| `not_eq` | 不等于 | `not_eq=status:禁用` | `status != '禁用'` | 字符串、数字、布尔值 |
+| `not_like` | 否定模糊匹配 | `not_like=name:测试` | `name NOT LIKE '%测试%'` | 字符串 |
+| `not_in` | 否定包含查询 | `not_in=category:其他` | `category NOT IN ('其他')` | 字符串、数字 |
+
+## 搜索操作符使用指南
+
+### 字符串字段搜索
+```bash
+# 精确匹配
+GET /products?eq=status:启用
+
+# 模糊搜索
+GET /products?like=name:iPhone
+
+# 包含查询
+GET /products?in=category:手机&in=category:平板
+
+# 否定查询
+GET /products?not_eq=status:禁用
+GET /products?not_like=name:测试
+GET /products?not_in=category:其他
+```
+
+### 数值字段搜索
+```bash
+# 精确匹配
+GET /products?eq=price:1000
+
+# 范围查询
+GET /products?gt=price:1000      # 大于1000
+GET /products?gte=price:1000     # 大于等于1000
+GET /products?lt=price:5000      # 小于5000
+GET /products?lte=price:5000     # 小于等于5000
+
+# 否定查询
+GET /products?not_eq=price:1000  # 不等于1000
+```
+
+### 时间戳字段搜索
+```bash
+# 时间范围查询（毫秒时间戳）
+GET /products?gte=created_at:1704067200000  # 2024-01-01 00:00:00 之后
+GET /products?lte=created_at:1704153600000  # 2024-01-02 00:00:00 之前
+
+# 精确时间查询
+GET /products?eq=created_at:1704067200000   # 2024-01-01 00:00:00
+```
 
 ## 排序功能
 

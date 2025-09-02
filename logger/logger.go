@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yunhanshu-net/pkg/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"github.com/yunhanshu-net/pkg/trace"
 )
 
 // 常量定义
@@ -24,9 +24,10 @@ const (
 )
 
 var (
-	logger  *zap.Logger
-	sugar   *zap.SugaredLogger
-	baseDir string // 程序的基础目录
+	logger      *zap.Logger
+	sugar       *zap.SugaredLogger
+	baseDir     string // 程序的基础目录
+	initialized bool   // 添加初始化状态标记
 )
 
 // Config 日志配置
@@ -141,8 +142,45 @@ func Init(cfg Config) error {
 	// 创建logger实例
 	logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
 	sugar = logger.Sugar()
+	initialized = true // 标记已初始化
 
 	return nil
+}
+
+// ensureInitialized 确保日志系统已初始化，如果没有则自动初始化
+func ensureInitialized() {
+	if !initialized {
+		// 使用默认配置自动初始化
+		defaultConfig := Config{
+			Level:      "info",
+			Filename:   "./logs/app.log",
+			MaxSize:    100,
+			MaxBackups: 3,
+			MaxAge:     7,
+			Compress:   true,
+			IsDev:      true, // 默认开发环境，输出到控制台
+		}
+
+		if err := Init(defaultConfig); err != nil {
+			// 如果自动初始化失败，创建一个基础的logger避免panic
+			encoderConfig := zapcore.EncoderConfig{
+				TimeKey:    "ts",
+				LevelKey:   "level",
+				MessageKey: "msg",
+				EncodeTime: customTimeEncoder,
+			}
+
+			core := zapcore.NewCore(
+				zapcore.NewConsoleEncoder(encoderConfig),
+				zapcore.AddSync(os.Stdout),
+				zapcore.InfoLevel,
+			)
+
+			logger = zap.New(core)
+			sugar = logger.Sugar()
+			initialized = true
+		}
+	}
 }
 
 // 自定义时间编码器
@@ -233,39 +271,46 @@ func withTraceID(ctx context.Context, fields []zap.Field) []zap.Field {
 
 // Debug 输出Debug级别日志
 func Debug(ctx context.Context, msg string, fields ...zap.Field) {
+	ensureInitialized()
 	logger.Debug(msg, withTraceID(ctx, fields)...)
 }
 
 // Debugf 格式化输出Debug级别日志
 func Debugf(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.Debug("", withTraceID(ctx, fields)...)
 }
 
 // Info 输出Info级别日志
 func Info(ctx context.Context, msg string, fields ...zap.Field) {
+	ensureInitialized()
 	logger.Info(msg, withTraceID(ctx, fields)...)
 }
 
 // Infof 格式化输出Info级别日志
 func Infof(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.Info("", withTraceID(ctx, fields)...)
 }
 
 // Warn 输出Warn级别日志
 func Warn(ctx context.Context, msg string, fields ...zap.Field) {
+	ensureInitialized()
 	logger.Warn(msg, withTraceID(ctx, fields)...)
 }
 
 // Warnf 格式化输出Warn级别日志
 func Warnf(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.Warn("", withTraceID(ctx, fields)...)
 }
 
 // Error 输出Error级别日志
 func Error(ctx context.Context, msg string, err error, fields ...zap.Field) {
+	ensureInitialized()
 	if err != nil {
 		fields = append(fields, zap.Error(err))
 	}
@@ -274,12 +319,14 @@ func Error(ctx context.Context, msg string, err error, fields ...zap.Field) {
 
 // Errorf 格式化输出Error级别日志
 func Errorf(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.Error("", withTraceID(ctx, fields)...)
 }
 
 // Fatal 输出Fatal级别日志并退出程序
 func Fatal(ctx context.Context, msg string, err error, fields ...zap.Field) {
+	ensureInitialized()
 	if err != nil {
 		fields = append(fields, zap.Error(err))
 	}
@@ -288,12 +335,14 @@ func Fatal(ctx context.Context, msg string, err error, fields ...zap.Field) {
 
 // Fatalf 格式化输出Fatal级别日志并退出程序
 func Fatalf(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.Fatal("", withTraceID(ctx, fields)...)
 }
 
 // With 创建带有指定字段的新日志记录器
 func With(fields ...zap.Field) *zap.Logger {
+	ensureInitialized()
 	return logger.With(fields...)
 }
 
@@ -304,7 +353,10 @@ func WithContext(ctx context.Context, traceID string) context.Context {
 
 // Sync 同步日志
 func Sync() error {
-	return logger.Sync()
+	if initialized {
+		return logger.Sync()
+	}
+	return nil
 }
 
 // DebugContextf 带上下文的格式化Debug日志
@@ -336,39 +388,46 @@ func FatalContextf(ctx context.Context, format string, args ...interface{}) {
 
 // DebugWrapped 封装场景的Debug日志（额外跳过一层调用栈）
 func DebugWrapped(ctx context.Context, msg string, fields ...zap.Field) {
+	ensureInitialized()
 	logger.WithOptions(zap.AddCallerSkip(1)).Debug(msg, withTraceID(ctx, fields)...)
 }
 
 // DebugfWrapped 封装场景的格式化Debug日志（额外跳过一层调用栈）
 func DebugfWrapped(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.WithOptions(zap.AddCallerSkip(1)).Debug("", withTraceID(ctx, fields)...)
 }
 
 // InfoWrapped 封装场景的Info日志（额外跳过一层调用栈）
 func InfoWrapped(ctx context.Context, msg string, fields ...zap.Field) {
+	ensureInitialized()
 	logger.WithOptions(zap.AddCallerSkip(1)).Info(msg, withTraceID(ctx, fields)...)
 }
 
 // InfofWrapped 封装场景的格式化Info日志（额外跳过一层调用栈）
 func InfofWrapped(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.WithOptions(zap.AddCallerSkip(1)).Info("", withTraceID(ctx, fields)...)
 }
 
 // WarnWrapped 封装场景的Warn日志（额外跳过一层调用栈）
 func WarnWrapped(ctx context.Context, msg string, fields ...zap.Field) {
+	ensureInitialized()
 	logger.WithOptions(zap.AddCallerSkip(1)).Warn(msg, withTraceID(ctx, fields)...)
 }
 
 // WarnfWrapped 封装场景的格式化Warn日志（额外跳过一层调用栈）
 func WarnfWrapped(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.WithOptions(zap.AddCallerSkip(1)).Warn("", withTraceID(ctx, fields)...)
 }
 
 // ErrorWrapped 封装场景的Error日志（额外跳过一层调用栈）
 func ErrorWrapped(ctx context.Context, msg string, err error, fields ...zap.Field) {
+	ensureInitialized()
 	if err != nil {
 		fields = append(fields, zap.Error(err))
 	}
@@ -377,12 +436,14 @@ func ErrorWrapped(ctx context.Context, msg string, err error, fields ...zap.Fiel
 
 // ErrorfWrapped 封装场景的格式化Error日志（额外跳过一层调用栈）
 func ErrorfWrapped(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.WithOptions(zap.AddCallerSkip(1)).Error("", withTraceID(ctx, fields)...)
 }
 
 // FatalWrapped 封装场景的Fatal日志（额外跳过一层调用栈）
 func FatalWrapped(ctx context.Context, msg string, err error, fields ...zap.Field) {
+	ensureInitialized()
 	if err != nil {
 		fields = append(fields, zap.Error(err))
 	}
@@ -391,6 +452,7 @@ func FatalWrapped(ctx context.Context, msg string, err error, fields ...zap.Fiel
 
 // FatalfWrapped 封装场景的格式化Fatal日志（额外跳过一层调用栈）
 func FatalfWrapped(ctx context.Context, format string, args ...interface{}) {
+	ensureInitialized()
 	fields := []zap.Field{zap.String("msg", fmt.Sprintf(format, args...))}
 	logger.WithOptions(zap.AddCallerSkip(1)).Fatal("", withTraceID(ctx, fields)...)
 }
