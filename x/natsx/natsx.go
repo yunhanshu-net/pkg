@@ -27,7 +27,8 @@ func InitNatsWithRetry(ctx context.Context, maxRetries int) (*nats.Conn, *server
 	for i := 0; i < maxRetries; i++ {
 		// 启动NATS服务器
 		natsSrv, err = server.NewServer(&server.Options{
-			Port: NatsServerPort,
+			Port:       NatsServerPort,
+			MaxPayload: 8 * 1024 * 1024,
 		})
 		if err != nil {
 			logger.Warn(ctx, "NATS初始化失败",

@@ -193,3 +193,4 @@ func AutoPaginate[T any](ctx context.Context, db *gorm.DB, model interface{}, da
 4. **验证结果**：通过完整的测试场景验证，问题已完全解决
 
 现在你的 `CrmPrintOrderList` 函数可以完全正常工作了，不会再出现任何连接污染问题！
+
