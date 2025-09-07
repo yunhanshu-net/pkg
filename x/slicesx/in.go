@@ -80,6 +80,15 @@ func Contains[T any](list []T, el T, cmp func(T, T) bool) bool {
 	return false
 }
 
+func ContainsInt(list []int, int2 int) bool {
+	for _, e := range list {
+		if int2 == e {
+			return true
+		}
+	}
+	return false
+}
+
 func RemoveString(list []string, el string) []string {
 	res := []string{}
 	for _, e := range list {
