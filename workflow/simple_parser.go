@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // 简单解析器
@@ -12,27 +13,32 @@ type SimpleParser struct{}
 
 // 解析结果
 type SimpleParseResult struct {
-	Success   bool                    `json:"success"`    // 解析是否成功
-	InputVars map[string]interface{}  `json:"input_vars"` // 输入变量
-	Steps     []SimpleStep            `json:"steps"`      // 工作流步骤
-	MainFunc  *SimpleMainFunc         `json:"main_func"`  // 主函数
-	Variables map[string]VariableInfo `json:"variables"`  // 变量映射表
-	Error     string                  `json:"error"`      // 错误信息
+	FlowID string `json:"flow_id"`
+
+	Success    bool                    `json:"success"`     // 解析是否成功
+	InputVars  map[string]interface{}  `json:"input_vars"`  // 输入变量
+	Steps      []*SimpleStep           `json:"steps"`       // 工作流步骤
+	MainFunc   *SimpleMainFunc         `json:"main_func"`   // 主函数
+	Variables  map[string]VariableInfo `json:"variables"`   // 变量映射表
+	GlobalLogs []*StepLog              `json:"global_logs"` // 全局日志
+	Error      string                  `json:"error"`       // 错误信息
 }
 
 // 变量信息
 type VariableInfo struct {
-	Name    string `json:"name"`     // 变量名
-	Type    string `json:"type"`     // 变量类型
-	Source  string `json:"source"`   // 来源函数名
-	LineNum int    `json:"line_num"` // 定义行号
-	IsInput bool   `json:"is_input"` // 是否来自input
+	Name    string      `json:"name"`     // 变量名
+	Type    string      `json:"type"`     // 变量类型
+	Value   interface{} `json:"value"`    // 变量值
+	Source  string      `json:"source"`   // 来源函数名
+	LineNum int         `json:"line_num"` // 定义行号
+	IsInput bool        `json:"is_input"` // 是否来自input
 }
 
 // 参数信息结构体
 type ArgumentInfo struct {
 	Value      string `json:"value"`       // 参数值
 	Type       string `json:"type"`        // 参数类型
+	Desc       string `json:"desc"`        // 参数描述
 	IsVariable bool   `json:"is_variable"` // 是否为变量引用
 	IsLiteral  bool   `json:"is_literal"`  // 是否为字面量
 	IsInput    bool   `json:"is_input"`    // 是否为输入参数
@@ -40,9 +46,35 @@ type ArgumentInfo struct {
 	LineNum    int    `json:"line_num"`    // 定义行号
 }
 
+// 参数定义信息（用于步骤定义中的参数）
+type ParameterInfo struct {
+	Name string `json:"name"` // 英文参数名
+	Type string `json:"type"` // 参数类型
+	Desc string `json:"desc"` // 中文描述
+}
+
 // 主函数
 type SimpleMainFunc struct {
 	Statements []*SimpleStatement `json:"statements"` // 语句列表
+}
+
+// 语句状态
+type StatementStatus string
+
+const (
+	StatusPending   StatementStatus = "pending"   // 待执行
+	StatusRunning   StatementStatus = "running"   // 正在执行
+	StatusCompleted StatementStatus = "completed" // 执行完成
+	StatusFailed    StatementStatus = "failed"    // 执行失败
+	StatusSkipped   StatementStatus = "skipped"   // 跳过执行
+)
+
+// 步骤日志
+type StepLog struct {
+	Timestamp time.Time `json:"timestamp"` // 日志时间
+	Level     string    `json:"level"`     // 日志级别 (info, warn, error)
+	Message   string    `json:"message"`   // 日志内容
+	Source    string    `json:"source"`    // 日志来源 (step1.Printf, sys.Print等)
 }
 
 // 语句
@@ -56,16 +88,42 @@ type SimpleStatement struct {
 	Args       []*ArgumentInfo        `json:"args"`        // 函数输入参数信息
 	Returns    []*ArgumentInfo        `json:"returns"`     // 函数输出参数信息
 	Metadata   map[string]interface{} `json:"metadata"`    // 元数据配置，如 {retry:1, timeout:2000}
+	Status     StatementStatus        `json:"status"`      // 执行状态
+	RetryCount int                    `json:"retry_count"` // 重试次数
+	Desc       string                 `json:"desc"`        // 步骤描述信息
 }
 
 // 简单步骤定义
 type SimpleStep struct {
-	Name        string          `json:"name"`         // 步骤名称
-	Function    string          `json:"function"`     // 函数名
-	InputTypes  []SimpleTypeDef `json:"input_types"`  // 输入类型
-	OutputTypes []SimpleTypeDef `json:"output_types"` // 输出类型
-	IsStatic    bool            `json:"is_static"`    // 是否为静态工作流
-	CaseID      string          `json:"case_id"`      // 用例ID
+	Name         string          `json:"name"`          // 步骤名称
+	Function     string          `json:"function"`      // 函数名
+	InputParams  []ParameterInfo `json:"input_params"`  // 输入参数定义
+	OutputParams []ParameterInfo `json:"output_params"` // 输出参数定义
+	IsStatic     bool            `json:"is_static"`     // 是否为静态工作流
+	CaseID       string          `json:"case_id"`       // 用例ID
+	Logs         []*StepLog      `json:"logs"`          // 步骤日志
+}
+
+// 添加步骤日志
+func (s *SimpleStep) AddLog(level, message, source string) {
+	log := &StepLog{
+		Timestamp: time.Now(),
+		Level:     level,
+		Message:   message,
+		Source:    source,
+	}
+	s.Logs = append(s.Logs, log)
+}
+
+// 添加全局日志
+func (r *SimpleParseResult) AddGlobalLog(level, message, source string) {
+	log := &StepLog{
+		Timestamp: time.Now(),
+		Level:     level,
+		Message:   message,
+		Source:    source,
+	}
+	r.GlobalLogs = append(r.GlobalLogs, log)
 }
 
 // 简单类型定义
@@ -82,16 +140,17 @@ func NewSimpleParser() *SimpleParser {
 // 解析工作流
 func (p *SimpleParser) ParseWorkflow(code string) *SimpleParseResult {
 	result := &SimpleParseResult{
-		Success:   true,
-		InputVars: make(map[string]interface{}),
-		Steps:     []SimpleStep{},
-		MainFunc:  &SimpleMainFunc{Statements: []*SimpleStatement{}},
-		Variables: make(map[string]VariableInfo),
+		Success:    true,
+		InputVars:  make(map[string]interface{}),
+		Steps:      []*SimpleStep{},
+		MainFunc:   &SimpleMainFunc{Statements: []*SimpleStatement{}},
+		Variables:  make(map[string]VariableInfo),
+		GlobalLogs: make([]*StepLog, 0),
 	}
 
 	lines := strings.Split(code, "\n")
 
-	for _, line := range lines {
+	for i, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "//") {
 			continue
@@ -109,9 +168,26 @@ func (p *SimpleParser) ParseWorkflow(code string) *SimpleParseResult {
 			continue
 		}
 
-		// 解析步骤定义
-		if strings.Contains(line, "=") && strings.Contains(line, "->") {
-			step, err := p.parseStep(line)
+		// 解析步骤定义 - 支持多行格式
+		if strings.Contains(line, "=") && (strings.Contains(line, "->") || strings.Contains(line, "beiluo.")) {
+			// 如果是多行步骤定义，需要收集所有相关行
+			stepLines := []string{line}
+
+			// 如果当前行包含函数调用开始但没有结束，继续收集后续行
+			if strings.Contains(line, "(") && !strings.Contains(line, ")") {
+				for j := i + 1; j < len(lines); j++ {
+					stepLines = append(stepLines, lines[j])
+					// 如果遇到分号，说明步骤定义结束
+					if strings.Contains(lines[j], ";") {
+						break
+					}
+				}
+			}
+
+			// 合并所有行
+			stepDefinition := strings.Join(stepLines, "\n")
+
+			step, err := p.parseStep(stepDefinition)
 			if err != nil {
 				result.Success = false
 				result.Error = err.Error()
@@ -223,9 +299,14 @@ func (p *SimpleParser) parseMapContent(content string) (map[string]interface{}, 
 	return result, nil
 }
 
+// 解析步骤定义（公开方法）
+func (p *SimpleParser) ParseStep(line string) (*SimpleStep, error) {
+	return p.parseStep(line)
+}
+
 // 解析步骤定义
-func (p *SimpleParser) parseStep(line string) (SimpleStep, error) {
-	step := SimpleStep{}
+func (p *SimpleParser) parseStep(line string) (*SimpleStep, error) {
+	step := &SimpleStep{}
 
 	// 根据 = 分隔
 	parts := strings.SplitN(line, "=", 2)
@@ -251,7 +332,7 @@ func (p *SimpleParser) parseStep(line string) (SimpleStep, error) {
 	}
 
 	step.Function = function
-	step.InputTypes = inputTypes
+	step.InputParams = inputTypes
 	step.IsStatic = isStatic
 	step.CaseID = caseID
 
@@ -261,13 +342,14 @@ func (p *SimpleParser) parseStep(line string) (SimpleStep, error) {
 		return step, err
 	}
 
-	step.OutputTypes = outputTypes
+	step.OutputParams = outputTypes
+	step.Logs = make([]*StepLog, 0)
 
 	return step, nil
 }
 
 // 解析输入部分
-func (p *SimpleParser) parseInputPart(inputPart string) ([]SimpleTypeDef, string, bool, string, error) {
+func (p *SimpleParser) parseInputPart(inputPart string) ([]ParameterInfo, string, bool, string, error) {
 	// 检查是否为静态工作流 [用例ID]
 	if strings.Contains(inputPart, "[") && strings.Contains(inputPart, "]") {
 		// 静态工作流
@@ -279,10 +361,10 @@ func (p *SimpleParser) parseInputPart(inputPart string) ([]SimpleTypeDef, string
 
 		function := strings.TrimSpace(matches[1])
 		caseID := strings.TrimSpace(matches[2])
-		return []SimpleTypeDef{}, function, true, caseID, nil
+		return []ParameterInfo{}, function, true, caseID, nil
 	}
 
-	// 动态工作流 function(type param, type param)
+	// 动态工作流 function(param: type "desc", param: type "desc")
 	if strings.Contains(inputPart, "(") && strings.Contains(inputPart, ")") {
 		// 提取函数名
 		parenIndex := strings.Index(inputPart, "(")
@@ -291,20 +373,17 @@ func (p *SimpleParser) parseInputPart(inputPart string) ([]SimpleTypeDef, string
 		// 提取参数部分
 		paramPart := inputPart[parenIndex+1 : strings.LastIndex(inputPart, ")")]
 
-		// 解析参数
-		inputTypes, err := p.parseTypeList(paramPart)
-		if err != nil {
-			return nil, "", false, "", err
-		}
+		// 解析参数定义
+		inputParams := p.parseParameterDefinitions(paramPart)
 
-		return inputTypes, function, false, "", nil
+		return inputParams, function, false, "", nil
 	}
 
 	return nil, "", false, "", fmt.Errorf("无法解析输入部分: %s", inputPart)
 }
 
 // 解析输出部分
-func (p *SimpleParser) parseOutputPart(outputPart string) ([]SimpleTypeDef, error) {
+func (p *SimpleParser) parseOutputPart(outputPart string) ([]ParameterInfo, error) {
 	// 移除分号
 	outputPart = strings.TrimSuffix(outputPart, ";")
 
@@ -313,7 +392,43 @@ func (p *SimpleParser) parseOutputPart(outputPart string) ([]SimpleTypeDef, erro
 		outputPart = outputPart[1 : len(outputPart)-1]
 	}
 
-	return p.parseTypeList(outputPart)
+	// 检查是否为新格式（包含冒号和引号）
+	if strings.Contains(outputPart, ":") && strings.Contains(outputPart, "\"") {
+		return p.parseParameterDefinitions(outputPart), nil
+	}
+
+	// 旧格式：bool 验证结果, err 是否失败
+	return p.parseLegacyOutputPart(outputPart), nil
+}
+
+// 解析旧格式输出部分
+func (p *SimpleParser) parseLegacyOutputPart(outputPart string) []ParameterInfo {
+	params := make([]ParameterInfo, 0)
+
+	// 按逗号分割参数
+	paramList := strings.Split(outputPart, ",")
+
+	for _, param := range paramList {
+		param = strings.TrimSpace(param)
+		if param == "" {
+			continue
+		}
+
+		// 解析格式：bool 验证结果
+		fields := strings.Fields(param)
+		if len(fields) >= 2 {
+			paramType := fields[0]
+			paramName := strings.Join(fields[1:], " ")
+
+			params = append(params, ParameterInfo{
+				Name: paramName,
+				Type: paramType,
+				Desc: paramName, // 使用参数名作为描述
+			})
+		}
+	}
+
+	return params
 }
 
 // 解析类型列表
@@ -397,13 +512,36 @@ func (p *SimpleParser) parseMainFunction(code string, lines []string, result *Si
 	return mainFunc, nil
 }
 
+// 提取描述信息
+func (p *SimpleParser) extractDescription(lines []string, currentIndex int) string {
+	// 检查当前行之前是否有 //desc: 注释
+	for j := currentIndex - 1; j >= 0; j-- {
+		prevLine := strings.TrimSpace(lines[j])
+		if prevLine == "" {
+			continue
+		}
+		if strings.HasPrefix(prevLine, "//desc:") {
+			return strings.TrimSpace(prevLine[7:]) // 去掉 "//desc:" 前缀
+		}
+		if !strings.HasPrefix(prevLine, "//") {
+			break // 遇到非注释行，停止查找
+		}
+	}
+	return ""
+}
+
 // 解析语句列表（支持嵌套）
 func (p *SimpleParser) parseStatements(lines []string, start, end int, result *SimpleParseResult) ([]*SimpleStatement, int) {
 	var statements []*SimpleStatement
 
 	for i := start; i < end; i++ {
 		line := strings.TrimSpace(lines[i])
-		if line == "" || line == "{" || line == "}" || strings.HasPrefix(line, "//") {
+		if line == "" || line == "{" || line == "}" {
+			continue
+		}
+
+		// 跳过纯注释行
+		if strings.HasPrefix(line, "//") {
 			continue
 		}
 
@@ -418,6 +556,8 @@ func (p *SimpleParser) parseStatements(lines []string, start, end int, result *S
 		// 解析普通语句
 		statement := p.parseStatement(line, i+1, result)
 		if statement != nil {
+			// 提取描述信息
+			statement.Desc = p.extractDescription(lines, i)
 			statements = append(statements, statement)
 		}
 	}
@@ -469,12 +609,18 @@ func (p *SimpleParser) parseIfStatement(lines []string, start int, result *Simpl
 	// 解析if语句体内的语句
 	children, _ := p.parseStatements(lines, start+1, ifEnd, result)
 
+	// 提取描述信息
+	desc := p.extractDescription(lines, start)
+
 	return &SimpleStatement{
 		Type:       "if",
 		Content:    line,
 		LineNumber: start + 1,
 		Condition:  condition,
 		Children:   children,
+		Status:     StatusPending,
+		RetryCount: 0,
+		Desc:       desc,
 	}, ifEnd + 1
 }
 
@@ -489,11 +635,25 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 	line = strings.TrimSuffix(line, ";")
 
 	// 判断语句类型
-	if strings.HasPrefix(line, "fmt.Println") || strings.HasPrefix(line, "fmt.Printf") {
+	if strings.HasPrefix(line, "sys.Print") || strings.HasPrefix(line, "fmt.Print") {
 		return &SimpleStatement{
 			Type:       "print",
 			Content:    line,
 			LineNumber: lineNumber,
+			Status:     StatusPending,
+			RetryCount: 0,
+			Desc:       "",
+		}
+	}
+
+	// 检查是否是步骤级别的日志记录
+	if strings.Contains(line, ".Printf") || strings.Contains(line, ".Println") {
+		return &SimpleStatement{
+			Type:       "print",
+			Content:    line,
+			LineNumber: lineNumber,
+			Status:     StatusPending,
+			RetryCount: 0,
 		}
 	}
 
@@ -502,6 +662,8 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 			Type:       "return",
 			Content:    line,
 			LineNumber: lineNumber,
+			Status:     StatusPending,
+			RetryCount: 0,
 		}
 	}
 
@@ -525,6 +687,8 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 				Type:       "var",
 				Content:    line,
 				LineNumber: lineNumber,
+				Status:     StatusPending,
+				RetryCount: 0,
 			}
 		}
 	}
@@ -536,6 +700,8 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 			Content:    line,
 			LineNumber: lineNumber,
 			Metadata:   make(map[string]interface{}),
+			Status:     StatusPending,
+			RetryCount: 0,
 		}
 
 		// 解析函数名和参数
@@ -566,7 +732,7 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 				if paramEnd > paramStart {
 					paramStr := strings.TrimSpace(funcCall[paramStart:paramEnd])
 					if paramStr != "" {
-						stmt.Args = p.parseArguments(paramStr, result)
+						stmt.Args = p.parseArguments(paramStr, funcName, result)
 					}
 				}
 
@@ -585,6 +751,8 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 			Content:    line,
 			LineNumber: lineNumber,
 			Metadata:   make(map[string]interface{}),
+			Status:     StatusPending,
+			RetryCount: 0,
 		}
 
 		// 解析函数名和参数
@@ -615,7 +783,7 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 				if paramEnd > paramStart {
 					paramStr := strings.TrimSpace(funcCall[paramStart:paramEnd])
 					if paramStr != "" {
-						stmt.Args = p.parseArguments(paramStr, result)
+						stmt.Args = p.parseArguments(paramStr, funcName, result)
 					}
 				}
 			}
@@ -630,6 +798,8 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 			Type:       "assign",
 			Content:    line,
 			LineNumber: lineNumber,
+			Status:     StatusPending,
+			RetryCount: 0,
 		}
 	}
 
@@ -640,6 +810,8 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 			Content:    line,
 			LineNumber: lineNumber,
 			Metadata:   make(map[string]interface{}),
+			Status:     StatusPending,
+			RetryCount: 0,
 		}
 
 		// 检查是否有元数据
@@ -666,7 +838,7 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 		if paramEnd > paramStart {
 			paramStr := strings.TrimSpace(funcCall[paramStart:paramEnd])
 			if paramStr != "" {
-				stmt.Args = p.parseArguments(paramStr, result)
+				stmt.Args = p.parseArguments(paramStr, funcName, result)
 			}
 		}
 
@@ -678,6 +850,9 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 		Type:       "other",
 		Content:    line,
 		LineNumber: lineNumber,
+		Status:     StatusPending,
+		RetryCount: 0,
+		Desc:       "",
 	}
 }
 
@@ -715,24 +890,24 @@ func (r *SimpleParseResult) Print() {
 				fmt.Printf("     类型: 动态工作流\n")
 			}
 
-			if len(step.InputTypes) > 0 {
+			if len(step.InputParams) > 0 {
 				fmt.Printf("     输入参数: ")
-				for j, input := range step.InputTypes {
+				for j, input := range step.InputParams {
 					if j > 0 {
 						fmt.Printf(", ")
 					}
-					fmt.Printf("%s %s", input.Type, input.Name)
+					fmt.Printf("%s %s (%s)", input.Type, input.Name, input.Desc)
 				}
 				fmt.Println()
 			}
 
-			if len(step.OutputTypes) > 0 {
+			if len(step.OutputParams) > 0 {
 				fmt.Printf("     输出参数: ")
-				for j, output := range step.OutputTypes {
+				for j, output := range step.OutputParams {
 					if j > 0 {
 						fmt.Printf(", ")
 					}
-					fmt.Printf("%s %s", output.Type, output.Name)
+					fmt.Printf("%s %s (%s)", output.Type, output.Name, output.Desc)
 				}
 				fmt.Println()
 			}
@@ -841,13 +1016,76 @@ func (p *SimpleParser) parseMetadata(metadataStr string) map[string]interface{} 
 	return metadata
 }
 
+// 解析参数定义（用于步骤定义中的参数）
+func (p *SimpleParser) parseParameterDefinitions(paramStr string) []ParameterInfo {
+	params := make([]ParameterInfo, 0)
+
+	// 按逗号分割参数
+	paramList := strings.Split(paramStr, ",")
+
+	for _, param := range paramList {
+		param = strings.TrimSpace(param)
+		if param == "" {
+			continue
+		}
+
+		// 解析格式：username: string "用户名"
+		paramInfo := p.parseSingleParameterDefinition(param)
+		if paramInfo != nil {
+			params = append(params, *paramInfo)
+		}
+	}
+
+	return params
+}
+
+// 解析单个参数定义
+func (p *SimpleParser) parseSingleParameterDefinition(paramStr string) *ParameterInfo {
+	// 格式：username: string "用户名"
+	// 1. 按冒号分割
+	parts := strings.SplitN(paramStr, ":", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+
+	name := strings.TrimSpace(parts[0])
+	typeAndDesc := strings.TrimSpace(parts[1])
+
+	// 2. 按空格分割类型和描述
+	typeDescParts := strings.SplitN(typeAndDesc, " ", 2)
+	if len(typeDescParts) != 2 {
+		return nil
+	}
+
+	paramType := strings.TrimSpace(typeDescParts[0])
+	desc := strings.TrimSpace(typeDescParts[1])
+
+	// 3. 去掉描述中的引号
+	desc = strings.Trim(desc, "\"")
+
+	return &ParameterInfo{
+		Name: name,
+		Type: paramType,
+		Desc: desc,
+	}
+}
+
 // 解析函数参数为ArgumentInfo结构体
-func (p *SimpleParser) parseArguments(paramStr string, result *SimpleParseResult) []*ArgumentInfo {
+func (p *SimpleParser) parseArguments(paramStr string, funcName string, result *SimpleParseResult) []*ArgumentInfo {
 	var args []*ArgumentInfo
+
+	// 从步骤定义中获取输入参数信息
+	var inputParams []ParameterInfo
+	for _, step := range result.Steps {
+		if step.Name == funcName {
+			inputParams = step.InputParams
+			break
+		}
+	}
 
 	// 按逗号分割参数
 	params := strings.Split(paramStr, ",")
-	for _, param := range params {
+	for i, param := range params {
 		param = strings.TrimSpace(param)
 		if param == "" {
 			continue
@@ -855,6 +1093,11 @@ func (p *SimpleParser) parseArguments(paramStr string, result *SimpleParseResult
 
 		arg := &ArgumentInfo{
 			Value: param,
+		}
+
+		// 从输入参数定义中获取描述信息
+		if i < len(inputParams) {
+			arg.Desc = inputParams[i].Desc
 		}
 
 		// 判断参数类型
@@ -894,11 +1137,11 @@ func (p *SimpleParser) parseArguments(paramStr string, result *SimpleParseResult
 // 解析返回变量并建立映射
 func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber int, result *SimpleParseResult) []*ArgumentInfo {
 	// 从步骤定义中获取输出类型
-	var outputTypes []SimpleTypeDef
+	var outputParams []ParameterInfo
 	for _, step := range result.Steps {
 		// 匹配步骤名称（如step1）而不是函数名
 		if step.Name == funcName {
-			outputTypes = step.OutputTypes
+			outputParams = step.OutputParams
 			break
 		}
 	}
@@ -913,12 +1156,12 @@ func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber 
 			continue
 		}
 
-		// 从输出类型中获取对应的类型
+		// 从输出参数中获取对应的类型和描述
 		varType := "unknown"
-		if i < len(outputTypes) {
-			// 对于"err 是否失败"这种情况，Type是"err"，Name是"是否失败"
-			// 我们需要使用Type字段
-			varType = outputTypes[i].Type
+		varDesc := ""
+		if i < len(outputParams) {
+			varType = outputParams[i].Type
+			varDesc = outputParams[i].Desc
 		}
 
 		// 检查变量名是否重复，如果重复则重命名
@@ -931,6 +1174,7 @@ func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber 
 		returnArg := &ArgumentInfo{
 			Value:      varName,
 			Type:       varType,
+			Desc:       varDesc,
 			IsVariable: true,
 			IsLiteral:  false,
 			IsInput:    false,
@@ -961,4 +1205,27 @@ func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber 
 	}
 
 	return returns
+}
+
+// 设置语句状态
+func (s *SimpleStatement) SetStatus(status StatementStatus) {
+	s.Status = status
+}
+
+// 增加重试次数
+func (s *SimpleStatement) IncrementRetry() {
+	s.RetryCount++
+}
+
+// 重置重试次数
+func (s *SimpleStatement) ResetRetry() {
+	s.RetryCount = 0
+}
+
+// 获取步骤名称（用于日志记录）
+func (s *SimpleStatement) GetStepName() string {
+	if s.Type == "function-call" && s.Function != "" {
+		return s.Function
+	}
+	return "unknown"
 }

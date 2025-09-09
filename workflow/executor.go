@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -75,6 +76,35 @@ func (e *WorkflowExecutor) ExecuteWorkflow(code string) *ExecutionResult {
 		}
 	}
 
+	// 执行工作流并返回结果
+	return e.executeWorkflowWithResult(parseResult, startTime)
+}
+
+// 执行工作流并返回更新后的解析结果
+func (e *WorkflowExecutor) ExecuteWorkflowWithResult(code string) (*ExecutionResult, *SimpleParseResult) {
+	startTime := time.Now()
+
+	// 解析工作流
+	parseResult := e.parser.ParseWorkflow(code)
+	if !parseResult.Success {
+		return &ExecutionResult{
+			Success:   false,
+			StartTime: startTime,
+			EndTime:   time.Now(),
+			Duration:  time.Since(startTime).Milliseconds(),
+			Error:     parseResult.Error,
+			Variables: make(map[string]interface{}),
+		}, parseResult
+	}
+
+	// 执行工作流并返回结果
+	execResult := e.executeWorkflowWithResult(parseResult, startTime)
+	return execResult, parseResult
+}
+
+// 执行工作流的核心逻辑
+func (e *WorkflowExecutor) executeWorkflowWithResult(parseResult *SimpleParseResult, startTime time.Time) *ExecutionResult {
+
 	// 初始化执行结果
 	result := &ExecutionResult{
 		Success:   true,
@@ -90,7 +120,7 @@ func (e *WorkflowExecutor) ExecuteWorkflow(code string) *ExecutionResult {
 	}
 
 	// 执行主函数
-	err := e.executeMainFunction(parseResult.MainFunc, result)
+	err := e.executeMainFunction(parseResult.MainFunc, result, parseResult)
 	if err != nil {
 		result.Success = false
 		result.Error = err.Error()
@@ -103,12 +133,12 @@ func (e *WorkflowExecutor) ExecuteWorkflow(code string) *ExecutionResult {
 }
 
 // 执行主函数
-func (e *WorkflowExecutor) executeMainFunction(mainFunc *SimpleMainFunc, result *ExecutionResult) error {
+func (e *WorkflowExecutor) executeMainFunction(mainFunc *SimpleMainFunc, result *ExecutionResult, parseResult *SimpleParseResult) error {
 	fmt.Println("🚀 开始执行工作流...")
 
 	// 执行所有语句
 	for _, stmt := range mainFunc.Statements {
-		err := e.executeStatement(stmt, result)
+		err := e.executeStatement(stmt, result, parseResult)
 		if err != nil {
 			return err
 		}
@@ -119,34 +149,70 @@ func (e *WorkflowExecutor) executeMainFunction(mainFunc *SimpleMainFunc, result 
 }
 
 // 执行语句
-func (e *WorkflowExecutor) executeStatement(stmt *SimpleStatement, result *ExecutionResult) error {
+func (e *WorkflowExecutor) executeStatement(stmt *SimpleStatement, result *ExecutionResult, parseResult *SimpleParseResult) error {
+	// 设置状态为正在执行
+	stmt.SetStatus(StatusRunning)
+
 	switch stmt.Type {
 	case "print":
-		return e.executePrintStatement(stmt, result)
+		return e.executePrintStatement(stmt, result, parseResult)
 	case "function-call":
-		return e.executeFunctionCall(stmt, result)
+		return e.executeFunctionCall(stmt, result, parseResult)
 	case "if":
-		return e.executeIfStatement(stmt, result)
+		return e.executeIfStatement(stmt, result, parseResult)
 	case "var":
-		return e.executeVarStatement(stmt, result)
+		return e.executeVarStatement(stmt, result, parseResult)
 	case "return":
-		return e.executeReturnStatement(stmt, result)
+		return e.executeReturnStatement(stmt, result, parseResult)
 	default:
+		// 添加全局日志
+		parseResult.AddGlobalLog("warn", fmt.Sprintf("跳过未知语句类型: %s", stmt.Type), "system")
 		fmt.Printf("⚠️ 跳过未知语句类型: %s\n", stmt.Type)
+		stmt.SetStatus(StatusSkipped)
 		return nil
 	}
 }
 
 // 执行打印语句
-func (e *WorkflowExecutor) executePrintStatement(stmt *SimpleStatement, result *ExecutionResult) error {
-	fmt.Printf("   【print】%s\n", stmt.Content)
+func (e *WorkflowExecutor) executePrintStatement(stmt *SimpleStatement, result *ExecutionResult, parseResult *SimpleParseResult) error {
+	// 检查是否是步骤级别的日志记录
+	if strings.Contains(stmt.Content, ".Printf") || strings.Contains(stmt.Content, ".Println") {
+		// 解析步骤名称和日志内容
+		stepName, logMessage := e.parseStepLog(stmt.Content)
+
+		// 找到对应的步骤并添加日志
+		for i := range parseResult.Steps {
+			if parseResult.Steps[i].Name == stepName {
+				parseResult.Steps[i].AddLog("info", logMessage, stepName+".Printf")
+				break
+			}
+		}
+		fmt.Printf("   【%s】%s\n", stepName, logMessage)
+	} else if strings.HasPrefix(stmt.Content, "sys.Print") {
+		// 全局日志
+		parseResult.AddGlobalLog("info", stmt.Content, "sys.Print")
+		fmt.Printf("   【sys】%s\n", stmt.Content)
+	} else {
+		// 其他打印语句作为全局日志
+		parseResult.AddGlobalLog("info", stmt.Content, "unknown")
+		fmt.Printf("   【print】%s\n", stmt.Content)
+	}
+
+	stmt.SetStatus(StatusCompleted)
 	return nil
 }
 
 // 执行函数调用
-func (e *WorkflowExecutor) executeFunctionCall(stmt *SimpleStatement, result *ExecutionResult) error {
+func (e *WorkflowExecutor) executeFunctionCall(stmt *SimpleStatement, result *ExecutionResult, parseResult *SimpleParseResult) error {
 	stepStartTime := time.Now()
 
+	// 记录开始执行的日志到对应步骤
+	for i := range parseResult.Steps {
+		if parseResult.Steps[i].Name == stmt.Function {
+			parseResult.Steps[i].AddLog("info", fmt.Sprintf("开始执行步骤: %s", stmt.Function), stmt.Function)
+			break
+		}
+	}
 	fmt.Printf("🔧 [步骤] %s - 函数: %s\n", stmt.Function, stmt.Function)
 
 	// 打印输入参数
@@ -228,13 +294,23 @@ func (e *WorkflowExecutor) executeFunctionCall(stmt *SimpleStatement, result *Ex
 
 	result.Steps = append(result.Steps, stepResult)
 
+	// 记录执行完成的日志到对应步骤
+	for i := range parseResult.Steps {
+		if parseResult.Steps[i].Name == stmt.Function {
+			parseResult.Steps[i].AddLog("info", fmt.Sprintf("步骤执行完成 (耗时: %dms)", stepResult.Duration), stmt.Function)
+			break
+		}
+	}
 	fmt.Printf("   ✅ 步骤执行完成 (耗时: %dms)\n", stepResult.Duration)
+
+	// 设置状态为完成
+	stmt.SetStatus(StatusCompleted)
 
 	return nil
 }
 
 // 执行if语句
-func (e *WorkflowExecutor) executeIfStatement(stmt *SimpleStatement, result *ExecutionResult) error {
+func (e *WorkflowExecutor) executeIfStatement(stmt *SimpleStatement, result *ExecutionResult, parseResult *SimpleParseResult) error {
 	// 简单的条件判断逻辑
 	// 这里可以根据实际需求实现更复杂的条件判断
 	shouldExecute := true
@@ -243,32 +319,44 @@ func (e *WorkflowExecutor) executeIfStatement(stmt *SimpleStatement, result *Exe
 	if stmt.Condition != "" {
 		// 简单的错误检查逻辑
 		shouldExecute = e.evaluateCondition(stmt.Condition, result)
+		parseResult.AddGlobalLog("info", fmt.Sprintf("条件判断: %s = %v", stmt.Condition, shouldExecute), "system")
 	}
 
 	if shouldExecute {
+		parseResult.AddGlobalLog("info", "条件为真，执行子语句", "system")
 		// 执行子语句
 		for _, childStmt := range stmt.Children {
-			err := e.executeStatement(childStmt, result)
+			err := e.executeStatement(childStmt, result, parseResult)
 			if err != nil {
+				parseResult.AddGlobalLog("error", fmt.Sprintf("子语句执行失败: %v", err), "system")
+				stmt.SetStatus(StatusFailed)
 				return err
 			}
 		}
+	} else {
+		parseResult.AddGlobalLog("info", "条件为假，跳过子语句", "system")
+		stmt.SetStatus(StatusSkipped)
 	}
 
+	stmt.SetStatus(StatusCompleted)
 	return nil
 }
 
 // 执行变量赋值语句
-func (e *WorkflowExecutor) executeVarStatement(stmt *SimpleStatement, result *ExecutionResult) error {
+func (e *WorkflowExecutor) executeVarStatement(stmt *SimpleStatement, result *ExecutionResult, parseResult *SimpleParseResult) error {
 	// 简单的变量赋值逻辑
 	// 这里可以根据实际需求实现更复杂的变量处理
 	result.Variables["变量值"] = "模拟变量值"
 
+	parseResult.AddGlobalLog("info", "变量赋值完成", "system")
+	stmt.SetStatus(StatusCompleted)
 	return nil
 }
 
 // 执行return语句
-func (e *WorkflowExecutor) executeReturnStatement(stmt *SimpleStatement, result *ExecutionResult) error {
+func (e *WorkflowExecutor) executeReturnStatement(stmt *SimpleStatement, result *ExecutionResult, parseResult *SimpleParseResult) error {
+	parseResult.AddGlobalLog("info", "执行返回语句", "system")
+	stmt.SetStatus(StatusCompleted)
 	return nil
 }
 
@@ -321,7 +409,48 @@ func (e *WorkflowExecutor) evaluateCondition(condition string, result *Execution
 		return false // 默认条件为假
 	}
 
+	// 检查其他布尔条件
+	if condition == "工号 != \"\"" {
+		if value := e.getVariableValue("工号", result); value != nil {
+			if strValue, ok := value.(string); ok {
+				return strValue != "" // 检查字符串是否不为空
+			}
+		}
+		return false
+	}
+
 	return false
+}
+
+// 解析步骤日志
+func (e *WorkflowExecutor) parseStepLog(content string) (stepName, logMessage string) {
+	// 解析格式：step3.Printf("✅ 面试安排成功，时间: %s\n", 面试时间)
+	// 或者：step3.Println("✅ 面试安排成功")
+
+	// 查找第一个点号
+	dotIndex := strings.Index(content, ".")
+	if dotIndex == -1 {
+		return "unknown", content
+	}
+
+	stepName = strings.TrimSpace(content[:dotIndex])
+
+	// 查找括号
+	parenStart := strings.Index(content, "(")
+	parenEnd := strings.LastIndex(content, ")")
+	if parenStart == -1 || parenEnd == -1 || parenStart >= parenEnd {
+		return stepName, content
+	}
+
+	// 提取日志内容（去掉引号）
+	logContent := strings.TrimSpace(content[parenStart+1 : parenEnd])
+	if strings.HasPrefix(logContent, "\"") && strings.HasSuffix(logContent, "\"") {
+		logMessage = logContent[1 : len(logContent)-1]
+	} else {
+		logMessage = logContent
+	}
+
+	return stepName, logMessage
 }
 
 // 打印执行结果

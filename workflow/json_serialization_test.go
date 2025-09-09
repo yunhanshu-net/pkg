@@ -15,11 +15,20 @@ func TestJSONSerialization(t *testing.T) {
 step1 = beiluo.test1.devops.devops_script_create(string 用户名, int 手机号) -> (string 工号, string 用户名, err 是否失败);
 
 func main() {
+    //desc: 开始用户注册流程
+    fmt.Println("开始用户注册流程...")
+    
+    //desc: 创建用户账号，获取工号
     工号, 用户名, step1Err := step1(input["用户名"], input["手机号"]){retry:3, timeout:5000}
+    
+    //desc: 检查用户创建是否成功
     if step1Err != nil {
-        fmt.Printf("创建用户失败: %v\n", step1Err)
+        //desc: 用户创建失败，记录错误并退出
+        step1.Printf("创建用户失败: %v", step1Err)
         return
     }
+    
+    //desc: 用户创建成功，记录成功日志
     fmt.Printf("用户创建成功，工号: %s\n", 工号)
 }`
 
@@ -113,13 +122,13 @@ step2 = beiluo.test1.devops.deploy_test(string 项目名称, string 版本号) -
 func main() {
     step1Err := step1()
     if step1Err != nil {
-        fmt.Printf("推送失败: %v\n", step1Err)
+        step1.Printf("推送失败: %v", step1Err)
         return
     }
     
     部署地址, step2Err := step2(input["项目名称"], input["版本号"]){retry:2, timeout:3000}
     if step2Err != nil {
-        fmt.Printf("部署失败: %v\n", step2Err)
+        step2.Printf("部署失败: %v", step2Err)
         return
     }
     

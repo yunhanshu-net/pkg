@@ -16,7 +16,7 @@ step1 = beiluo.test1.devops.devops_script_create(string 用户名, int 手机号
 func main() {
     工号, 用户名, step1Err := step1(input["用户名"], input["手机号"])
     if step1Err != nil {
-        fmt.Printf("创建用户失败: %v\n", step1Err)
+        step1.Printf("创建用户失败: %v", step1Err)
         return
     }
     fmt.Printf("用户创建成功，工号: %s\n", 工号)
@@ -40,14 +40,14 @@ func main() {
     // 创建用户
     工号, 用户名, 部门, step1Err := step1(input["用户名"], input["手机号"], input["邮箱"]){retry:3, timeout:5000, priority:"high"}
     if step1Err != nil {
-        fmt.Printf("创建用户失败: %v\n", step1Err)
+        step1.Printf("创建用户失败: %v", step1Err)
         return
     }
     
     // 安排面试
     面试时间, 面试官名称, step2Err := step2(用户名, 部门){retry:2, timeout:3000, priority:"normal"}
     if step2Err != nil {
-        fmt.Printf("安排面试失败: %v\n", step2Err)
+        step2.Printf("安排面试失败: %v", step2Err)
         return
     }
     
@@ -55,7 +55,7 @@ func main() {
     通知内容 := "你收到了:{{用户名}},时间：{{面试时间}}的面试安排，请关注"
     step3Err := step3(input["邮箱"], 通知内容){retry:1, timeout:2000, priority:"low"}
     if step3Err != nil {
-        fmt.Printf("发送通知失败: %v\n", step3Err)
+        step3.Printf("发送通知失败: %v", step3Err)
         return
     }
     
@@ -93,7 +93,7 @@ func main() {
     // 1. 验证订单信息
     验证结果, 验证信息, step1Err := step1()
     if step1Err != nil {
-        fmt.Printf("订单验证失败: %v\n", step1Err)
+        step1.Printf("订单验证失败: %v", step1Err)
         return
     }
     if !验证结果 {
@@ -104,14 +104,14 @@ func main() {
     // 2. 创建订单
     订单ID, 订单状态, step2Err := step2()
     if step2Err != nil {
-        fmt.Printf("订单创建失败: %v\n", step2Err)
+        step2.Printf("订单创建失败: %v", step2Err)
         return
     }
     
     // 3. 检查库存
     库存充足, 缺货商品, step4Err := step4(input["商品列表"]){retry:2, timeout:5000, priority:"high"}
     if step4Err != nil {
-        fmt.Printf("库存检查失败: %v\n", step4Err)
+        step4.Printf("库存检查失败: %v", step4Err)
         return
     }
     if !库存充足 {
