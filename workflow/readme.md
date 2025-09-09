@@ -13,6 +13,7 @@
 - ✅ **变量防重复**: 自动重命名重复变量名（如err → step1Err）
 - ✅ **变量赋值**: 支持 `var` 类型变量赋值解析
 - ✅ **参数结构**: 使用 `ArgumentInfo` 结构体提供详细参数信息
+- ✅ **元数据支持**: 支持函数调用元数据配置 `{retry:1, timeout:2000}`
 - ✅ **注释忽略**: 自动忽略 `//` 开头的注释行
 - ✅ **中文支持**: 完整支持中文变量名和注释
 
@@ -23,8 +24,15 @@ workflow/
 ├── simple_parser.go      # 简单解析器核心实现
 ├── simple_parser_test.go # 完整测试套件
 ├── readme.md            # 设计文档
-└── README.md            # 说明文档
+├── 用户使用指南.md        # 用户使用指南
+└── 开发者集成指南.md      # 开发者集成指南
 ```
+
+## 文档导航
+
+- **[用户使用指南](用户使用指南.md)** - 面向工作流编写者，介绍语言语法和特性，包含丰富的完整示例
+- **[开发者集成指南](开发者集成指南.md)** - 面向服务端开发者，介绍解析器API和集成方法
+- **[设计文档](readme.md)** - 技术设计文档，介绍解析器架构和实现细节
 
 ## 快速开始
 
@@ -101,6 +109,20 @@ func main() {
                 fmt.Printf("%s(%s)", arg.Value, arg.Type)
             }
             fmt.Println()
+            
+            // 显示元数据
+            if len(stmt.Metadata) > 0 {
+                fmt.Printf("  元数据: ")
+                first := true
+                for key, value := range stmt.Metadata {
+                    if !first {
+                        fmt.Printf(", ")
+                    }
+                    fmt.Printf("%s:%v", key, value)
+                    first = false
+                }
+                fmt.Println()
+            }
         }
     }
 }
@@ -155,7 +177,20 @@ func main() {
 状态 := "已完成"
 ```
 
-### 5. 条件判断
+### 5. 元数据配置
+
+```go
+// 函数调用带元数据配置
+工号, 用户名, step1Err := step1(input["用户名"], input["手机号"]){retry:3, timeout:5000, priority:"high"}
+
+// 纯函数调用带元数据
+step2(用户名){retry:1, timeout:2000, async:true}
+
+// 支持的元数据类型
+step3(){retry:5, timeout:10000, debug:true, mode:"production"}
+```
+
+### 6. 条件判断
 
 ```go
 if step1Err != nil {
@@ -228,6 +263,32 @@ type ArgumentInfo struct {
 // 参数2: {Value: "input[\"手机号\"]", Type: "input", IsInput: true, Source: "input"}
 ```
 
+### 元数据配置系统
+
+解析器支持在函数调用后添加元数据配置，提供执行时的控制参数：
+
+```go
+type SimpleStatement struct {
+    // ... 其他字段
+    Metadata map[string]interface{} // 元数据配置
+}
+
+// 元数据解析示例
+// step1(input["用户名"], input["手机号"]){retry:3, timeout:5000, priority:"high"}
+// 解析结果:
+// Metadata = {
+//     "retry": 3,           // 数字类型
+//     "timeout": 5000,      // 数字类型  
+//     "priority": "high"    // 字符串类型
+// }
+```
+
+**支持的元数据类型**：
+- **数字**: `retry:3`, `timeout:5000`
+- **布尔值**: `async:true`, `debug:false`
+- **字符串**: `priority:"high"`, `mode:"production"`
+- **混合配置**: `{retry:1, timeout:2000, async:true, priority:"high"}`
+
 ## API文档
 
 ### SimpleParser
@@ -257,7 +318,7 @@ type SimpleParseResult struct {
 
 - `SimpleStep`: 工作流步骤定义
 - `SimpleMainFunc`: 主函数
-- `SimpleStatement`: 语句（支持嵌套）
+- `SimpleStatement`: 语句（支持嵌套和元数据）
 - `VariableInfo`: 变量信息
 - `ArgumentInfo`: 参数详细信息
 
@@ -271,6 +332,7 @@ go test -v
 go test -v -run TestSimpleParser_DynamicWorkflow
 go test -v -run TestSimpleParser_StaticWorkflow
 go test -v -run TestSimpleParser_MixedWorkflow
+go test -v -run TestSimpleParser_MetadataSupport
 ```
 
 ## 性能特点
@@ -300,6 +362,7 @@ go test -v -run TestSimpleParser_MixedWorkflow
 - ✅ **模板支持**: 支持 `{{变量名}}` 模板语法
 - ✅ **参数分析**: 详细的参数类型和来源分析
 - ✅ **变量赋值**: 智能识别变量赋值语句
+- ✅ **元数据配置**: 支持函数调用元数据配置
 
 ## 贡献
 

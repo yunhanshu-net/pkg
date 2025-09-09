@@ -1,10 +1,16 @@
 package workflow
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSimpleParser_StaticWorkflow(t *testing.T) {
+
+	//静态工作流
 	code := `
 var input = map[string]interface{}{
     "项目名称": "my-project",
@@ -57,6 +63,11 @@ func main() {
 	if !result.Success {
 		t.Fatalf("解析失败: %s", result.Error)
 	}
+	marshal, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(string(marshal))
 
 	// 测试输入变量
 	if len(result.InputVars) != 3 {
@@ -382,4 +393,51 @@ var input = map[string]interface{}{
 	// 这个测试可能会成功，因为我们的解析器比较宽松
 	// 如果需要严格的错误检查，可以在这里添加相应的测试
 	_ = result
+}
+
+func TestSimpleParser_MetadataSupport(t *testing.T) {
+	code := `
+var input = map[string]interface{}{
+    "用户名": "张三",
+    "手机号": 13800138000,
+}
+
+step1 = beiluo.test1.devops.devops_script_create(string 用户名, int 手机号) -> (string 工号, string 用户名, err 是否失败);
+
+func main() {
+    // 带元数据的函数调用
+    工号, 用户名, step1Err := step1(input["用户名"], input["手机号"]){retry:3, timeout:5000, priority:"high"}
+    if step1Err != nil {
+        fmt.Printf("创建用户失败: %v\n", step1Err)
+        return
+    }
+    
+    // 纯函数调用带元数据
+    step2(用户名){retry:1, timeout:2000, async:true}
+}`
+
+	parser := NewSimpleParser()
+	result := parser.ParseWorkflow(code)
+
+	assert.True(t, result.Success)
+	assert.Empty(t, result.Error)
+	assert.Len(t, result.MainFunc.Statements, 3)
+
+	// 检查第一个函数调用的元数据
+	firstCall := result.MainFunc.Statements[0]
+	assert.Equal(t, "function-call", firstCall.Type)
+	assert.Equal(t, "step1", firstCall.Function)
+	assert.Len(t, firstCall.Metadata, 3)
+	assert.Equal(t, 3, firstCall.Metadata["retry"])
+	assert.Equal(t, 5000, firstCall.Metadata["timeout"])
+	assert.Equal(t, "high", firstCall.Metadata["priority"])
+
+	// 检查第二个函数调用的元数据
+	secondCall := result.MainFunc.Statements[2]
+	assert.Equal(t, "function-call", secondCall.Type)
+	assert.Equal(t, "step2", secondCall.Function)
+	assert.Len(t, secondCall.Metadata, 3)
+	assert.Equal(t, 1, secondCall.Metadata["retry"])
+	assert.Equal(t, 2000, secondCall.Metadata["timeout"])
+	assert.Equal(t, true, secondCall.Metadata["async"])
 }

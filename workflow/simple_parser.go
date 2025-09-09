@@ -12,21 +12,21 @@ type SimpleParser struct{}
 
 // 解析结果
 type SimpleParseResult struct {
-	Success   bool
-	InputVars map[string]interface{}
-	Steps     []SimpleStep
-	MainFunc  *SimpleMainFunc
-	Variables map[string]VariableInfo // 变量映射表
-	Error     string
+	Success   bool                    `json:"success"`    // 解析是否成功
+	InputVars map[string]interface{}  `json:"input_vars"` // 输入变量
+	Steps     []SimpleStep            `json:"steps"`      // 工作流步骤
+	MainFunc  *SimpleMainFunc         `json:"main_func"`  // 主函数
+	Variables map[string]VariableInfo `json:"variables"`  // 变量映射表
+	Error     string                  `json:"error"`      // 错误信息
 }
 
 // 变量信息
 type VariableInfo struct {
-	Name    string // 变量名
-	Type    string // 变量类型
-	Source  string // 来源函数名
-	LineNum int    // 定义行号
-	IsInput bool   // 是否来自input
+	Name    string `json:"name"`     // 变量名
+	Type    string `json:"type"`     // 变量类型
+	Source  string `json:"source"`   // 来源函数名
+	LineNum int    `json:"line_num"` // 定义行号
+	IsInput bool   `json:"is_input"` // 是否来自input
 }
 
 // 参数信息结构体
@@ -42,34 +42,36 @@ type ArgumentInfo struct {
 
 // 主函数
 type SimpleMainFunc struct {
-	Statements []SimpleStatement
+	Statements []*SimpleStatement `json:"statements"` // 语句列表
 }
 
 // 语句
 type SimpleStatement struct {
-	Type       string // "call", "assign", "if", "return", "print", "function-call"
-	Content    string
-	LineNumber int
-	Children   []SimpleStatement // 嵌套语句，如if语句的body
-	Condition  string            // 条件表达式，如if语句的条件
-	Function   string            // 函数名，如step1()
-	Args       []ArgumentInfo    // 函数参数信息
+	Type       string                 `json:"type"`        // 语句类型
+	Content    string                 `json:"content"`     // 语句内容
+	LineNumber int                    `json:"line_number"` // 行号
+	Children   []*SimpleStatement     `json:"children"`    // 嵌套语句，如if语句的body
+	Condition  string                 `json:"condition"`   // 条件表达式，如if语句的条件
+	Function   string                 `json:"function"`    // 函数名，如step1()
+	Args       []*ArgumentInfo        `json:"args"`        // 函数输入参数信息
+	Returns    []*ArgumentInfo        `json:"returns"`     // 函数输出参数信息
+	Metadata   map[string]interface{} `json:"metadata"`    // 元数据配置，如 {retry:1, timeout:2000}
 }
 
 // 简单步骤定义
 type SimpleStep struct {
-	Name        string
-	Function    string
-	InputTypes  []SimpleTypeDef
-	OutputTypes []SimpleTypeDef
-	IsStatic    bool
-	CaseID      string
+	Name        string          `json:"name"`         // 步骤名称
+	Function    string          `json:"function"`     // 函数名
+	InputTypes  []SimpleTypeDef `json:"input_types"`  // 输入类型
+	OutputTypes []SimpleTypeDef `json:"output_types"` // 输出类型
+	IsStatic    bool            `json:"is_static"`    // 是否为静态工作流
+	CaseID      string          `json:"case_id"`      // 用例ID
 }
 
 // 简单类型定义
 type SimpleTypeDef struct {
-	Type string
-	Name string
+	Type string `json:"type"` // 类型
+	Name string `json:"name"` // 名称
 }
 
 // 创建简单解析器
@@ -83,7 +85,7 @@ func (p *SimpleParser) ParseWorkflow(code string) *SimpleParseResult {
 		Success:   true,
 		InputVars: make(map[string]interface{}),
 		Steps:     []SimpleStep{},
-		MainFunc:  &SimpleMainFunc{Statements: []SimpleStatement{}},
+		MainFunc:  &SimpleMainFunc{Statements: []*SimpleStatement{}},
 		Variables: make(map[string]VariableInfo),
 	}
 
@@ -345,7 +347,7 @@ func (p *SimpleParser) parseTypeList(typeList string) ([]SimpleTypeDef, error) {
 
 // 解析main函数
 func (p *SimpleParser) parseMainFunction(code string, lines []string, result *SimpleParseResult) (*SimpleMainFunc, error) {
-	mainFunc := &SimpleMainFunc{Statements: []SimpleStatement{}}
+	mainFunc := &SimpleMainFunc{Statements: []*SimpleStatement{}}
 
 	// 找到main函数开始位置
 	mainStart := -1
@@ -396,8 +398,8 @@ func (p *SimpleParser) parseMainFunction(code string, lines []string, result *Si
 }
 
 // 解析语句列表（支持嵌套）
-func (p *SimpleParser) parseStatements(lines []string, start, end int, result *SimpleParseResult) ([]SimpleStatement, int) {
-	var statements []SimpleStatement
+func (p *SimpleParser) parseStatements(lines []string, start, end int, result *SimpleParseResult) ([]*SimpleStatement, int) {
+	var statements []*SimpleStatement
 
 	for i := start; i < end; i++ {
 		line := strings.TrimSpace(lines[i])
@@ -416,7 +418,7 @@ func (p *SimpleParser) parseStatements(lines []string, start, end int, result *S
 		// 解析普通语句
 		statement := p.parseStatement(line, i+1, result)
 		if statement != nil {
-			statements = append(statements, *statement)
+			statements = append(statements, statement)
 		}
 	}
 
@@ -424,7 +426,7 @@ func (p *SimpleParser) parseStatements(lines []string, start, end int, result *S
 }
 
 // 解析if语句
-func (p *SimpleParser) parseIfStatement(lines []string, start int, result *SimpleParseResult) (SimpleStatement, int) {
+func (p *SimpleParser) parseIfStatement(lines []string, start int, result *SimpleParseResult) (*SimpleStatement, int) {
 	line := strings.TrimSpace(lines[start])
 
 	// 提取条件
@@ -467,7 +469,7 @@ func (p *SimpleParser) parseIfStatement(lines []string, start int, result *Simpl
 	// 解析if语句体内的语句
 	children, _ := p.parseStatements(lines, start+1, ifEnd, result)
 
-	return SimpleStatement{
+	return &SimpleStatement{
 		Type:       "if",
 		Content:    line,
 		LineNumber: start + 1,
@@ -533,6 +535,7 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 			Type:       "function-call",
 			Content:    line,
 			LineNumber: lineNumber,
+			Metadata:   make(map[string]interface{}),
 		}
 
 		// 解析函数名和参数
@@ -540,6 +543,18 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 		if len(parts) == 2 {
 			funcCall := strings.TrimSpace(parts[1])
 			if strings.Contains(funcCall, "(") && strings.Contains(funcCall, ")") {
+				// 检查是否有元数据
+				if strings.Contains(funcCall, "){") && strings.Contains(funcCall, "}") {
+					// 分离函数调用和元数据
+					braceIndex := strings.Index(funcCall, "){")
+					funcPart := funcCall[:braceIndex+1] // 包含右括号
+					metadataPart := funcCall[braceIndex+1:]
+
+					// 解析元数据
+					stmt.Metadata = p.parseMetadata(metadataPart)
+					funcCall = funcPart
+				}
+
 				// 提取函数名
 				funcStart := strings.Index(funcCall, "(")
 				funcName := strings.TrimSpace(funcCall[:funcStart])
@@ -556,7 +571,7 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 				}
 
 				// 解析返回变量并建立映射
-				p.parseReturnVariables(parts[0], funcName, lineNumber, result)
+				stmt.Returns = p.parseReturnVariables(parts[0], funcName, lineNumber, result)
 			}
 		}
 
@@ -569,6 +584,7 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 			Type:       "function-call",
 			Content:    line,
 			LineNumber: lineNumber,
+			Metadata:   make(map[string]interface{}),
 		}
 
 		// 解析函数名和参数
@@ -576,6 +592,18 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 		if len(parts) == 2 {
 			funcCall := strings.TrimSpace(parts[1])
 			if strings.Contains(funcCall, "(") && strings.Contains(funcCall, ")") {
+				// 检查是否有元数据
+				if strings.Contains(funcCall, "){") && strings.Contains(funcCall, "}") {
+					// 分离函数调用和元数据
+					braceIndex := strings.Index(funcCall, "){")
+					funcPart := funcCall[:braceIndex+1] // 包含右括号
+					metadataPart := funcCall[braceIndex+1:]
+
+					// 解析元数据
+					stmt.Metadata = p.parseMetadata(metadataPart)
+					funcCall = funcPart
+				}
+
 				// 提取函数名
 				funcStart := strings.Index(funcCall, "(")
 				funcName := strings.TrimSpace(funcCall[:funcStart])
@@ -611,18 +639,32 @@ func (p *SimpleParser) parseStatement(line string, lineNumber int, result *Simpl
 			Type:       "function-call",
 			Content:    line,
 			LineNumber: lineNumber,
+			Metadata:   make(map[string]interface{}),
+		}
+
+		// 检查是否有元数据
+		funcCall := line
+		if strings.Contains(line, "){") && strings.Contains(line, "}") {
+			// 分离函数调用和元数据
+			braceIndex := strings.Index(line, "){")
+			funcPart := line[:braceIndex+1] // 包含右括号
+			metadataPart := line[braceIndex+1:]
+
+			// 解析元数据
+			stmt.Metadata = p.parseMetadata(metadataPart)
+			funcCall = funcPart
 		}
 
 		// 解析函数名和参数
-		funcStart := strings.Index(line, "(")
-		funcName := strings.TrimSpace(line[:funcStart])
+		funcStart := strings.Index(funcCall, "(")
+		funcName := strings.TrimSpace(funcCall[:funcStart])
 		stmt.Function = funcName
 
 		// 提取参数
 		paramStart := funcStart + 1
-		paramEnd := strings.LastIndex(line, ")")
+		paramEnd := strings.LastIndex(funcCall, ")")
 		if paramEnd > paramStart {
-			paramStr := strings.TrimSpace(line[paramStart:paramEnd])
+			paramStr := strings.TrimSpace(funcCall[paramStart:paramEnd])
 			if paramStr != "" {
 				stmt.Args = p.parseArguments(paramStr, result)
 			}
@@ -704,7 +746,7 @@ func (r *SimpleParseResult) Print() {
 }
 
 // 递归打印语句（支持嵌套）
-func (r *SimpleParseResult) printStatements(statements []SimpleStatement, depth int) {
+func (r *SimpleParseResult) printStatements(statements []*SimpleStatement, depth int) {
 	indent := strings.Repeat("  ", depth)
 
 	for i, stmt := range statements {
@@ -715,13 +757,26 @@ func (r *SimpleParseResult) printStatements(statements []SimpleStatement, depth 
 		if stmt.Type == "function-call" && stmt.Function != "" {
 			fmt.Printf("%s   函数: %s\n", indent, stmt.Function)
 			if len(stmt.Args) > 0 {
-				fmt.Printf("%s   参数:\n", indent)
+				fmt.Printf("%s   输入参数:\n", indent)
 				for j, arg := range stmt.Args {
 					fmt.Printf("%s     %d. %s (类型: %s, 变量: %v, 字面量: %v, 输入: %v)\n",
 						indent, j+1, arg.Value, arg.Type, arg.IsVariable, arg.IsLiteral, arg.IsInput)
 					if arg.Source != "" && arg.Source != arg.Value {
 						fmt.Printf("%s        来源: %s\n", indent, arg.Source)
 					}
+				}
+			}
+			if len(stmt.Returns) > 0 {
+				fmt.Printf("%s   输出参数:\n", indent)
+				for j, ret := range stmt.Returns {
+					fmt.Printf("%s     %d. %s (类型: %s, 来源: %s)\n",
+						indent, j+1, ret.Value, ret.Type, ret.Source)
+				}
+			}
+			if len(stmt.Metadata) > 0 {
+				fmt.Printf("%s   元数据:\n", indent)
+				for key, value := range stmt.Metadata {
+					fmt.Printf("%s     %s: %v\n", indent, key, value)
 				}
 			}
 		}
@@ -737,9 +792,58 @@ func (r *SimpleParseResult) printStatements(statements []SimpleStatement, depth 
 	}
 }
 
+// 解析元数据配置
+func (p *SimpleParser) parseMetadata(metadataStr string) map[string]interface{} {
+	metadata := make(map[string]interface{})
+
+	// 移除大括号
+	metadataStr = strings.TrimSpace(metadataStr)
+	if strings.HasPrefix(metadataStr, "{") && strings.HasSuffix(metadataStr, "}") {
+		metadataStr = metadataStr[1 : len(metadataStr)-1]
+	}
+
+	// 按逗号分割键值对
+	pairs := strings.Split(metadataStr, ",")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+
+		// 分割键值对
+		parts := strings.SplitN(pair, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// 类型推断
+		var parsedValue interface{}
+		if value == "true" {
+			parsedValue = true
+		} else if value == "false" {
+			parsedValue = false
+		} else if num, err := strconv.Atoi(value); err == nil {
+			parsedValue = num
+		} else if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+			// 字符串字面量
+			parsedValue = value[1 : len(value)-1]
+		} else {
+			// 默认为字符串
+			parsedValue = value
+		}
+
+		metadata[key] = parsedValue
+	}
+
+	return metadata
+}
+
 // 解析函数参数为ArgumentInfo结构体
-func (p *SimpleParser) parseArguments(paramStr string, result *SimpleParseResult) []ArgumentInfo {
-	var args []ArgumentInfo
+func (p *SimpleParser) parseArguments(paramStr string, result *SimpleParseResult) []*ArgumentInfo {
+	var args []*ArgumentInfo
 
 	// 按逗号分割参数
 	params := strings.Split(paramStr, ",")
@@ -749,7 +853,7 @@ func (p *SimpleParser) parseArguments(paramStr string, result *SimpleParseResult
 			continue
 		}
 
-		arg := ArgumentInfo{
+		arg := &ArgumentInfo{
 			Value: param,
 		}
 
@@ -788,7 +892,7 @@ func (p *SimpleParser) parseArguments(paramStr string, result *SimpleParseResult
 }
 
 // 解析返回变量并建立映射
-func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber int, result *SimpleParseResult) {
+func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber int, result *SimpleParseResult) []*ArgumentInfo {
 	// 从步骤定义中获取输出类型
 	var outputTypes []SimpleTypeDef
 	for _, step := range result.Steps {
@@ -798,6 +902,8 @@ func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber 
 			break
 		}
 	}
+
+	var returns []*ArgumentInfo
 
 	// 分割变量名
 	vars := strings.Split(varStr, ",")
@@ -821,6 +927,18 @@ func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber 
 			varName = funcName + "Err"
 		}
 
+		// 创建返回参数信息
+		returnArg := &ArgumentInfo{
+			Value:      varName,
+			Type:       varType,
+			IsVariable: true,
+			IsLiteral:  false,
+			IsInput:    false,
+			Source:     funcName,
+			LineNum:    lineNumber,
+		}
+		returns = append(returns, returnArg)
+
 		// 建立变量映射
 		result.Variables[varName] = VariableInfo{
 			Name:    varName,
@@ -841,4 +959,6 @@ func (p *SimpleParser) parseReturnVariables(varStr, funcName string, lineNumber 
 			}
 		}
 	}
+
+	return returns
 }
