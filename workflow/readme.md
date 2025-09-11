@@ -24,6 +24,10 @@
 - ✅ **状态持久化**: 支持SQLite持久化，实现断点续传
 - ✅ **并发执行**: 支持多工作流实例并发执行
 - ✅ **Context支持**: 所有回调函数支持context.Context，支持取消和超时
+- ✅ **执行耗时记录**: 自动记录每个节点的执行时间
+- ✅ **超时控制**: 支持步骤级别的超时设置
+- ✅ **重试机制**: 支持自动重试和指数退避
+- ✅ **调试模式**: 支持调试模式输出详细信息
 
 ## 项目结构
 
@@ -38,7 +42,8 @@ workflow/
 ├── examples/                 # 示例项目
 │   ├── user_registration/    # 用户注册工作流示例
 │   ├── error_handling/       # 错误处理示例
-│   └── concurrent_execution/ # 并发执行示例
+│   ├── concurrent_execution/ # 并发执行示例
+│   └── timing_and_metadata/  # 执行耗时和元数据示例
 ├── readme.md                 # 设计文档
 ├── 用户使用指南.md            # 用户使用指南
 └── 开发者集成指南.md          # 开发者集成指南
@@ -79,6 +84,10 @@ go run main.go
 # 并发执行示例
 cd examples/concurrent_execution
 go run main.go
+
+# 执行耗时和元数据示例
+cd examples/timing_and_metadata
+go run main.go
 ```
 
 ### 3. 在代码中使用
@@ -103,7 +112,7 @@ step1 = beiluo.test1.devops.git_push[用例001] -> (err 是否失败);
 
 func main() {
     //desc: 开始执行发布流程
-    fmt.Println("开始执行发布流程...")
+    sys.Println("开始执行发布流程...")
     
     //desc: 推送代码到远程仓库
     err := step1()
@@ -128,7 +137,7 @@ func main() {
     
     // 检查错误
     if !result.Success {
-        fmt.Printf("解析失败: %s\n", result.Error)
+        sys.Printf("解析失败: %s\n", result.Error)
         return
     }
     
@@ -137,8 +146,8 @@ func main() {
     
     // 设置回调函数
     executor.OnFunctionCall = func(ctx context.Context, step workflow.SimpleStep, in *workflow.ExecutorIn) (*workflow.ExecutorOut, error) {
-        fmt.Printf("执行步骤: %s - %s\n", step.Name, in.StepDesc)
-        fmt.Printf("输入参数: %+v\n", in.RealInput)
+        sys.Printf("执行步骤: %s - %s\n", step.Name, in.StepDesc)
+        sys.Printf("输入参数: %+v\n", in.RealInput)
         
         // 模拟业务逻辑
         return &workflow.ExecutorOut{
@@ -152,23 +161,23 @@ func main() {
     }
     
     executor.OnWorkFlowUpdate = func(ctx context.Context, current *workflow.SimpleParseResult) error {
-        fmt.Printf("工作流状态更新: FlowID=%s\n", current.FlowID)
+        sys.Printf("工作流状态更新: FlowID=%s\n", current.FlowID)
         return nil
     }
     
     executor.OnWorkFlowExit = func(ctx context.Context, current *workflow.SimpleParseResult) error {
-        fmt.Println("工作流正常结束")
+        sys.Println("工作流正常结束")
         return nil
     }
     
     // 执行工作流
     ctx := context.Background()
     if err := executor.Start(ctx, result); err != nil {
-        fmt.Printf("执行失败: %v\n", err)
+        sys.Printf("执行失败: %v\n", err)
         return
     }
     
-    fmt.Println("工作流执行完成！")
+    sys.Println("工作流执行完成！")
 }
 ```
 
@@ -219,26 +228,13 @@ var input = map[string]interface{}{
     "手机号": 13800138000,
 }
 
-step1 = beiluo.test1.devops.devops_script_create(
-    username: string "用户名",
-    phone: int "手机号"
-) -> (
-    workId: string "工号",
-    username: string "用户名", 
-    err: error "是否失败"
-);
+step1 = beiluo.test1.devops.devops_script_create(username: string "用户名", phone: int "手机号") -> (workId: string "工号", username: string "用户名", err: error "是否失败");
 
-step2 = beiluo.test1.crm.crm_interview_schedule(
-    username: string "用户名"
-) -> (
-    interviewTime: string "面试时间",
-    interviewer: string "面试官名称", 
-    err: error "是否失败"
-);
+step2 = beiluo.test1.crm.crm_interview_schedule(username: string "用户名") -> (interviewTime: string "面试时间", interviewer: string "面试官名称", err: error "是否失败");
 
 func main() {
     //desc: 开始用户注册和面试安排流程
-    fmt.Println("开始用户注册和面试安排流程...")
+    sys.Println("开始用户注册和面试安排流程...")
     
     //desc: 创建用户账号，获取工号
     工号, 用户名, step1Err := step1(input["用户名"], input["手机号"])
@@ -273,7 +269,7 @@ func main() {
 ```go
 func main() {
     //desc: 开始订单处理流程
-    fmt.Println("开始订单处理流程...")
+    sys.Println("开始订单处理流程...")
     
     //desc: 验证订单信息，检查订单是否有效
     验证结果, step1Err := step1(input["订单号"], input["金额"]){retry:2, timeout:3000}
@@ -288,7 +284,7 @@ func main() {
     //desc: 根据验证结果决定后续流程
     if 验证结果 {
         //desc: 订单验证通过，开始处理支付
-        fmt.Println("订单验证通过，开始处理支付...")
+        sys.Println("订单验证通过，开始处理支付...")
         
         //desc: 处理支付流程，调用支付接口
         支付流水号, step2Err := step2(input["订单号"], input["金额"]){retry:3, timeout:5000, priority:"high"}
@@ -301,11 +297,11 @@ func main() {
         }
         
         //desc: 支付成功，记录流水号
-        fmt.Printf("订单处理完成，支付流水号: %s\n", 支付流水号)
+        sys.Printf("订单处理完成，支付流水号: %s\n", 支付流水号)
     } else {
         //desc: 订单验证失败，流程结束
         step1.Printf("订单验证失败")
-        fmt.Println("订单验证失败，流程结束")
+        sys.Println("订单验证失败，流程结束")
     }
 }
 ```
@@ -336,14 +332,42 @@ func main() {
 
 ```go
 // 函数调用带元数据配置
-工号, 用户名, step1Err := step1(input["用户名"], input["手机号"]){retry:3, timeout:5000, priority:"high"}
+工号, 用户名, step1Err := step1(input["用户名"], input["手机号"]){timeout: 10000, retry_count: 3, debug: true, priority: 1}
 
 // 纯函数调用带元数据
-step2(用户名){retry:1, timeout:2000, async:true}
+step2(用户名){timeout: 5000, retry_count: 1, async: true, log_level: "debug"}
 
 // 支持的元数据类型
-step3(){retry:5, timeout:10000, debug:true, mode:"production"}
+step3(){timeout: 30000, retry_count: 0, async: false, debug: false, priority: 0, log_level: "info", ai_model: "gpt-4"}
 ```
+
+**元数据配置说明**：
+- **timeout**: 超时时间（毫秒），nil表示无超时限制
+- **retry_count**: 重试次数，默认0
+- **async**: 是否异步执行，默认false
+- **debug**: 是否调试模式，默认false
+- **priority**: 优先级，默认0
+- **log_level**: 日志级别，默认"info"
+- **ai_model**: AI模型，默认空
+
+**默认元数据配置**：
+```go
+type DefaultMetadata struct {
+    Timeout     *time.Duration `json:"timeout"`     // 超时时间，nil表示无超时限制
+    RetryCount  int            `json:"retry_count"` // 重试次数，默认0
+    Async       bool           `json:"async"`       // 是否异步执行，默认false
+    Priority    int            `json:"priority"`    // 优先级，默认0
+    Debug       bool           `json:"debug"`       // 是否调试模式，默认false
+    LogLevel    string         `json:"log_level"`   // 日志级别，默认info
+    AIModel     string         `json:"ai_model"`    // AI模型，默认空
+}
+```
+
+**超时控制说明**：
+- **无超时限制**: 默认情况下，工作流步骤没有超时限制，可以执行任意长时间
+- **设置超时**: 可以通过 `{timeout: 5000}` 设置5秒超时
+- **无超时**: 可以通过 `{timeout: null}` 明确设置为无超时限制
+- **适用场景**: 长时间运行的工作流（如数据处理、机器学习训练等）可以使用无超时限制
 
 ### 6. 条件判断
 
@@ -365,7 +389,7 @@ if step1Err != nil {
 
 ```go
 // 普通日志 - 全局日志
-fmt.Printf("✅ 用户创建成功，工号: %s\n", 工号)
+sys.Printf("✅ 用户创建成功，工号: %s\n", 工号)
 
 // 步骤级别日志 - 可以清楚地知道日志来自哪个步骤
 step1.Printf("✅ 用户创建成功，工号: %s", 工号)
@@ -382,6 +406,45 @@ step2.Printf("步骤执行完成，耗时: %dms", duration)
 - **便于调试**: 可以快速定位问题所在的步骤
 - **日志分类**: 支持按步骤分类和管理日志
 - **执行追踪**: 可以追踪每个步骤的执行过程
+
+### 8. 执行耗时记录
+
+```go
+// 每个语句都会自动记录执行时间
+type SimpleStatement struct {
+    // ... 其他字段
+    StartTime  *time.Time   `json:"start_time"`  // 开始执行时间
+    EndTime    *time.Time   `json:"end_time"`    // 结束执行时间
+    Duration   time.Duration `json:"duration"`   // 执行耗时
+}
+
+// 自动计时方法
+func (s *SimpleStatement) StartExecution()  // 开始执行计时
+func (s *SimpleStatement) EndExecution()    // 结束执行计时
+```
+
+**执行耗时记录的优势**：
+- **性能监控**: 可以监控每个步骤的执行性能
+- **瓶颈识别**: 快速识别执行时间较长的步骤
+- **优化指导**: 为性能优化提供数据支持
+- **执行统计**: 提供完整的执行时间统计信息
+
+**示例输出**：
+```
+=== 语句执行时间 ===
+语句 1: sys.Print("开始执行用户注册流程...")
+  开始时间: 17:52:04.490
+  结束时间: 17:52:04.490
+  执行耗时: 120.333µs
+  状态: completed
+
+语句 2: userId, err := step1(input["用户名"], input["手机号"]){timeout: 10000, retry_count: 3, debug: true}
+  开始时间: 17:52:04.490
+  结束时间: 17:52:04.692
+  执行耗时: 201.085625ms
+  状态: completed
+  元数据: map[timeout:10000 retry_count:3 debug:true priority:1]
+```
 
 ## 核心特性详解
 

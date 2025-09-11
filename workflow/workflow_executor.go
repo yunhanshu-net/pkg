@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -9,10 +10,22 @@ import (
 )
 
 type ExecutorIn struct {
-	StepName  string                 `json:"step_name"`  // 当前步骤名
-	StepDesc  string                 `json:"step_desc"`  // 步骤描述
-	RealInput map[string]interface{} `json:"real_input"` // 实际输入参数
-	Metadata  map[string]interface{} `json:"metadata"`   // 步骤元数据
+	StepName   string                 `json:"step_name"`   // 当前步骤名
+	StepDesc   string                 `json:"step_desc"`   // 步骤描述
+	RealInput  map[string]interface{} `json:"real_input"`  // 实际输入参数
+	WantParams []ParameterInfo        `json:"want_params"` // 预期返回参数信息
+	Options    *ExecutorOptions       `json:"options"`     // 执行选项
+}
+
+// 执行器选项
+type ExecutorOptions struct {
+	Timeout    *time.Duration `json:"timeout"`     // 超时时间，nil表示无超时限制
+	RetryCount int            `json:"retry_count"` // 重试次数
+	Async      bool           `json:"async"`       // 是否异步执行
+	Priority   int            `json:"priority"`    // 优先级
+	Debug      bool           `json:"debug"`       // 是否调试模式
+	LogLevel   string         `json:"log_level"`   // 日志级别
+	AIModel    string         `json:"ai_model"`    // AI模型
 }
 
 type ExecutorOut struct {
@@ -43,7 +56,6 @@ type Executor struct {
 	// 流程管理
 	FlowMap      map[string]*SimpleParseResult
 	RunningFlows map[string]context.CancelFunc // 正在运行的流程
-	cancelCtx    context.CancelFunc
 }
 
 type ExecutorResp struct {
@@ -97,26 +109,41 @@ func (e *Executor) executeMainFunction(ctx context.Context, workflow *SimplePars
 
 	// 遍历执行每个语句
 	for _, stmt := range workflow.MainFunc.Statements {
-		// 检查取消信号
+		// 检查取消信号（服务侧取消，如服务器关机等）
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			// 标记当前语句为取消状态
+			stmt.Status = "cancelled"
+			stmt.EndExecution()
+			// 触发兜底回调，更新节点状态
+			if e.OnWorkFlowUpdate != nil {
+				_ = e.OnWorkFlowUpdate(ctx, workflow)
+			}
+			return fmt.Errorf("工作流执行被取消: %v", ctx.Err())
 		default:
 		}
 
-		// 设置语句状态为运行中
-		stmt.Status = "running"
+		// 开始执行计时
+		stmt.StartExecution()
 
 		// 触发状态更新回调
 		if e.OnWorkFlowUpdate != nil {
 			if err := e.OnWorkFlowUpdate(ctx, workflow); err != nil {
+				stmt.EndExecution()
 				return err
 			}
 		}
 
 		// 执行语句
 		if err := e.executeStatement(ctx, stmt, workflow); err != nil {
+			// 检查是否是取消错误
+			if strings.Contains(err.Error(), "被取消") || strings.Contains(err.Error(), "被主动取消") {
+				// 取消错误，状态已经在 executeStatement 中设置
+				return err
+			}
+
 			// 执行失败，设置状态为失败
+			stmt.EndExecution()
 			stmt.Status = "failed"
 
 			// 触发状态更新回调
@@ -128,6 +155,9 @@ func (e *Executor) executeMainFunction(ctx context.Context, workflow *SimplePars
 
 			return err
 		}
+
+		// 结束执行计时
+		stmt.EndExecution()
 	}
 
 	// 正常结束
@@ -145,8 +175,7 @@ func (e *Executor) executeStatement(ctx context.Context, stmt *SimpleStatement, 
 		return e.executeFunctionCall(ctx, stmt, workflow)
 	case "if":
 		return e.executeIfStatement(ctx, stmt, workflow)
-	case "print":
-		return e.executePrintStatement(ctx, stmt, workflow)
+	// 注意：已移除打印语句支持，执行引擎会自动处理日志记录
 	case "var":
 		return e.executeVarStatement(ctx, stmt, workflow)
 	case "return":
@@ -172,7 +201,12 @@ func (e *Executor) executeFunctionCall(ctx context.Context, stmt *SimpleStatemen
 		return fmt.Errorf("未找到步骤定义: %s", stmt.Function)
 	}
 
-	// 2. 构建输入参数
+	// 2. 获取元数据配置
+	timeout := stmt.GetTimeout()
+	retryCount := stmt.GetRetryCount()
+	isDebug := stmt.IsDebug()
+
+	// 3. 构建输入参数
 	realInput := make(map[string]interface{})
 	for i, arg := range stmt.Args {
 		// 获取对应的输入参数定义
@@ -204,57 +238,211 @@ func (e *Executor) executeFunctionCall(ctx context.Context, stmt *SimpleStatemen
 		}
 	}
 
-	// 3. 调用业务回调
-	executorIn := &ExecutorIn{
-		StepName:  step.Name,
-		StepDesc:  stmt.Desc,
-		RealInput: realInput,
-		Metadata:  stmt.Metadata,
-	}
+	// 4. 超时控制现在由业务回调自己处理，通过元数据传递超时信息
 
-	executorOut, err := e.OnFunctionCall(ctx, *step, executorIn)
-	if err != nil {
-		return err
-	}
+	// 5. 执行重试逻辑
+	var lastErr error
+	for attempt := 0; attempt <= retryCount; attempt++ {
+		// 检查原始上下文取消信号（服务侧取消，如服务器关机等）
+		select {
+		case <-ctx.Done():
+			// 触发兜底回调，更新节点状态为取消
+			stmt.Status = "cancelled"
+			stmt.EndExecution()
+			if e.OnWorkFlowUpdate != nil {
+				// 异步执行，不阻塞主流程
+				go func() {
+					_ = e.OnWorkFlowUpdate(ctx, workflow)
+				}()
+			}
+			return fmt.Errorf("步骤执行被取消: %v", ctx.Err())
+		default:
+		}
 
-	// 4. 处理输出参数
-	if executorOut.Success {
-		// 将输出参数存储到变量映射中
-		// 需要将形参名映射到实例名
-		for i, returnVar := range stmt.Returns {
-			// 获取对应的输出参数定义
-			if i < len(step.OutputParams) {
-				paramDef := step.OutputParams[i]
-				// 从WantOutput中获取形参名对应的值
-				if value, exists := executorOut.WantOutput[paramDef.Name]; exists {
-					// 使用实例名作为变量名，而不是形参名
-					workflow.Variables[returnVar.Value] = VariableInfo{
-						Name:    returnVar.Value, // 实例名：工号、用户名、step1Err
-						Type:    paramDef.Type,   // 从步骤定义获取类型
-						Value:   value,           // 实际值
-						Source:  stmt.Function,
-						LineNum: stmt.LineNumber,
-						IsInput: false,
+		// 超时控制现在由业务回调自己处理
+
+		// 构建执行选项
+		options := &ExecutorOptions{
+			Timeout:    timeout,
+			RetryCount: retryCount,
+			Async:      stmt.IsAsync(),
+			Priority:   stmt.GetPriority(),
+			Debug:      isDebug,
+			LogLevel:   stmt.GetLogLevel(),
+			AIModel:    stmt.GetAIModel(),
+		}
+
+		// 调用业务回调
+		executorIn := &ExecutorIn{
+			StepName:   step.Name,
+			StepDesc:   stmt.Desc,
+			RealInput:  realInput,
+			WantParams: step.OutputParams, // 从步骤定义中获取预期返回参数
+			Options:    options,
+		}
+
+		// 如果是调试模式，记录调试信息
+		if isDebug {
+			timeoutStr := "无限制"
+			if timeout != nil {
+				timeoutStr = timeout.String()
+			}
+			fmt.Printf("【print】调试模式 - 执行步骤: %s, 尝试次数: %d/%d, 超时: %s\n",
+				step.Name, attempt+1, retryCount+1, timeoutStr)
+		}
+
+		executorOut, err := e.OnFunctionCall(ctx, *step, executorIn)
+		if err != nil {
+			// 检查是否是上下文相关错误（取消或超时）
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+				// 上下文被取消或超时
+				stmt.Status = "cancelled"
+				stmt.EndExecution()
+				if e.OnWorkFlowUpdate != nil {
+					_ = e.OnWorkFlowUpdate(ctx, workflow)
+				}
+				return fmt.Errorf("步骤执行被取消: %v", err)
+			}
+
+			// 业务逻辑错误，检查err_continue元数据
+			errContinue := false
+			if step.Metadata != nil {
+				if val, exists := step.Metadata["err_continue"]; exists {
+					if boolVal, ok := val.(bool); ok {
+						errContinue = boolVal
 					}
 				}
 			}
-		}
-	} else {
-		// 执行失败，更新状态为失败
-		stmt.Status = "failed"
 
-		// 触发状态更新回调
-		if e.OnWorkFlowUpdate != nil {
-			if err := e.OnWorkFlowUpdate(ctx, workflow); err != nil {
+			lastErr = err
+
+			if errContinue {
+				// err_continue: true - 记录错误但继续执行
+				stmt.Status = "failed_continue"
+
+				// 记录错误日志
+				log := &StepLog{
+					Timestamp: time.Now(),
+					Level:     "error",
+					Message:   fmt.Sprintf("步骤执行失败但继续执行: %v", err),
+					Source:    step.Name + ".Error",
+				}
+				step.Logs = append(step.Logs, log)
+
+				// 触发状态更新回调
+				if e.OnWorkFlowUpdate != nil {
+					if err := e.OnWorkFlowUpdate(ctx, workflow); err != nil {
+						return err
+					}
+				}
+
+				// 继续执行，不返回错误
+				return nil
+			} else {
+				// err_continue: false 或不设置 - 执行失败时终止工作流
+				if attempt < retryCount {
+					// 还有重试机会，等待一段时间后重试
+					time.Sleep(time.Duration(attempt+1) * time.Second)
+					continue
+				}
 				return err
 			}
 		}
 
-		return fmt.Errorf("步骤执行失败: %s", executorOut.Error)
+		// 业务回调执行后，再次检查原始上下文是否被取消
+		select {
+		case <-ctx.Done():
+			stmt.Status = "cancelled"
+			stmt.EndExecution()
+			if e.OnWorkFlowUpdate != nil {
+				_ = e.OnWorkFlowUpdate(ctx, workflow)
+			}
+			return fmt.Errorf("步骤执行被取消: %v", ctx.Err())
+		default:
+		}
+
+		// 6. 处理输出参数
+		if executorOut.Success {
+			// 将输出参数存储到变量映射中
+			// 需要将形参名映射到实例名
+			for i, returnVar := range stmt.Returns {
+				// 获取对应的输出参数定义
+				if i < len(step.OutputParams) {
+					paramDef := step.OutputParams[i]
+					// 从WantOutput中获取形参名对应的值
+					if value, exists := executorOut.WantOutput[paramDef.Name]; exists {
+						// 使用实例名作为变量名，而不是形参名
+						workflow.Variables[returnVar.Value] = VariableInfo{
+							Name:    returnVar.Value, // 实例名：工号、用户名、step1Err
+							Type:    paramDef.Type,   // 从步骤定义获取类型
+							Value:   value,           // 实际值
+							Source:  stmt.Function,
+							LineNum: stmt.LineNumber,
+							IsInput: false,
+						}
+					}
+				}
+			}
+
+			// 执行成功，更新状态为完成
+			stmt.Status = "completed"
+
+			// 触发状态更新回调
+			if e.OnWorkFlowUpdate != nil {
+				if err := e.OnWorkFlowUpdate(ctx, workflow); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		} else {
+			// 执行失败，检查err_continue元数据
+			errContinue := false
+			if step.Metadata != nil {
+				if val, exists := step.Metadata["err_continue"]; exists {
+					if boolVal, ok := val.(bool); ok {
+						errContinue = boolVal
+					}
+				}
+			}
+
+			lastErr = fmt.Errorf("步骤执行失败: %s", executorOut.Error)
+
+			if errContinue {
+				// err_continue: true - 记录错误但继续执行
+				stmt.Status = "failed_continue"
+
+				// 记录错误日志
+				log := &StepLog{
+					Timestamp: time.Now(),
+					Level:     "error",
+					Message:   fmt.Sprintf("步骤执行失败但继续执行: %s", executorOut.Error),
+					Source:    step.Name + ".Error",
+				}
+				step.Logs = append(step.Logs, log)
+
+				// 触发状态更新回调
+				if e.OnWorkFlowUpdate != nil {
+					if err := e.OnWorkFlowUpdate(ctx, workflow); err != nil {
+						return err
+					}
+				}
+
+				// 继续执行，不返回错误
+				return nil
+			} else {
+				// err_continue: false 或不设置 - 执行失败时终止工作流
+				if attempt < retryCount {
+					// 还有重试机会，等待一段时间后重试
+					time.Sleep(time.Duration(attempt+1) * time.Second)
+					continue
+				}
+			}
+		}
 	}
 
-	// 执行成功，更新状态为完成
-	stmt.Status = "completed"
+	// 所有重试都失败了
+	stmt.Status = "failed"
 
 	// 触发状态更新回调
 	if e.OnWorkFlowUpdate != nil {
@@ -263,7 +451,7 @@ func (e *Executor) executeFunctionCall(ctx context.Context, stmt *SimpleStatemen
 		}
 	}
 
-	return nil
+	return lastErr
 }
 
 // executeIfStatement 执行if语句
@@ -284,9 +472,13 @@ func (e *Executor) executeIfStatement(ctx context.Context, stmt *SimpleStatement
 	if result {
 		// 条件为真，执行子语句
 		for _, child := range stmt.Children {
+			// 为子语句开始计时
+			child.StartExecution()
 			if err := e.executeStatement(ctx, child, workflow); err != nil {
+				child.EndExecution()
 				return err
 			}
+			child.EndExecution()
 		}
 	}
 
@@ -303,59 +495,7 @@ func (e *Executor) executeIfStatement(ctx context.Context, stmt *SimpleStatement
 	return nil
 }
 
-// executePrintStatement 执行print语句
-func (e *Executor) executePrintStatement(ctx context.Context, stmt *SimpleStatement, workflow *SimpleParseResult) error {
-	// 1. 解析打印内容
-	content := stmt.Content
-	if content == "" {
-		return fmt.Errorf("print语句缺少内容")
-	}
-
-	// 2. 处理变量替换
-	processedContent, err := e.processTemplate(content, workflow.Variables)
-	if err != nil {
-		return fmt.Errorf("模板处理失败: %v", err)
-	}
-
-	// 3. 记录到步骤日志
-	stepName := e.extractStepNameFromPrint(content)
-	if stepName != "" {
-		// 找到对应的步骤并添加日志
-		for _, step := range workflow.Steps {
-			if step.Name == stepName {
-				log := &StepLog{
-					Timestamp: time.Now(),
-					Level:     "info",
-					Message:   processedContent,
-					Source:    stepName + ".Printf",
-				}
-				step.Logs = append(step.Logs, log)
-				break
-			}
-		}
-	} else {
-		// 全局日志
-		log := &StepLog{
-			Timestamp: time.Now(),
-			Level:     "info",
-			Message:   processedContent,
-			Source:    "sys.Print",
-		}
-		workflow.GlobalLogs = append(workflow.GlobalLogs, log)
-	}
-
-	// 4. 更新语句状态为完成
-	stmt.Status = "completed"
-
-	// 5. 触发状态更新回调
-	if e.OnWorkFlowUpdate != nil {
-		if err := e.OnWorkFlowUpdate(ctx, workflow); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
+// 注意：已移除 executePrintStatement 函数，执行引擎会自动处理日志记录
 
 // executeVarStatement 执行var语句
 func (e *Executor) executeVarStatement(ctx context.Context, stmt *SimpleStatement, workflow *SimpleParseResult) error {
@@ -488,16 +628,7 @@ func (e *Executor) processTemplate(content string, variables map[string]Variable
 	return result, nil
 }
 
-// extractStepNameFromPrint 从print语句中提取步骤名
-func (e *Executor) extractStepNameFromPrint(content string) string {
-	// 匹配 step1.Printf("...") 格式
-	re := regexp.MustCompile(`(\w+)\.Printf\(`)
-	matches := re.FindStringSubmatch(content)
-	if len(matches) > 1 {
-		return matches[1]
-	}
-	return ""
-}
+// 注意：已移除 extractStepNameFromPrint 函数，不再需要打印语句支持
 
 // parseVarAssignment 解析变量赋值语句
 func (e *Executor) parseVarAssignment(content string) (string, string, error) {
@@ -517,4 +648,16 @@ func (e *Executor) parseVarAssignment(content string) (string, string, error) {
 	}
 
 	return varName, varValue, nil
+}
+
+// Get 获取指定工作流的全部信息
+func (e *Executor) Get(flowID string) (*SimpleParseResult, error) {
+	// 检查工作流是否存在
+	workflow, exists := e.FlowMap[flowID]
+	if !exists {
+		return nil, fmt.Errorf("工作流不存在: %s", flowID)
+	}
+
+	// 直接返回工作流信息
+	return workflow, nil
 }

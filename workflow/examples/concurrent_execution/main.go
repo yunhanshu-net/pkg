@@ -11,8 +11,8 @@ import (
 )
 
 func main() {
-	fmt.Println("🚀 并发工作流执行演示")
-	fmt.Println("========================")
+	sys.Println("🚀 并发工作流执行演示")
+	sys.Println("========================")
 
 	// 1. 定义工作流代码
 	workflowCode := `var input = map[string]interface{}{
@@ -71,7 +71,7 @@ func main() {
     }
     step3.Printf("✅ 档案创建成功，档案ID: %s", 档案ID)
     
-    fmt.Printf("🎉 用户注册完成！用户ID: %s, 档案ID: %s\n", 用户ID, 档案ID)
+    sys.Printf("🎉 用户注册完成！用户ID: %s, 档案ID: %s\n", 用户ID, 档案ID)
 }`
 
 	// 2. 解析工作流
@@ -86,8 +86,8 @@ func main() {
 
 	// 4. 设置回调函数
 	executor.OnFunctionCall = func(ctx context.Context, step workflow.SimpleStep, in *workflow.ExecutorIn) (*workflow.ExecutorOut, error) {
-		fmt.Printf("[%s] 📋 执行步骤: %s - %s\n", time.Now().Format("15:04:05"), step.Name, in.StepDesc)
-		fmt.Printf("[%s] 📥 输入参数: %+v\n", time.Now().Format("15:04:05"), in.RealInput)
+		sys.Printf("[%s] 📋 执行步骤: %s - %s\n", time.Now().Format("15:04:05"), step.Name, in.StepDesc)
+		sys.Printf("[%s] 📥 输入参数: %+v\n", time.Now().Format("15:04:05"), in.RealInput)
 
 		// 模拟不同的执行时间
 		var sleepTime time.Duration
@@ -144,17 +144,17 @@ func main() {
 	}
 
 	executor.OnWorkFlowUpdate = func(ctx context.Context, current *workflow.SimpleParseResult) error {
-		fmt.Printf("[%s] 🔄 工作流状态更新: FlowID=%s\n", time.Now().Format("15:04:05"), current.FlowID)
+		sys.Printf("[%s] 🔄 工作流状态更新: FlowID=%s\n", time.Now().Format("15:04:05"), current.FlowID)
 		return nil
 	}
 
 	executor.OnWorkFlowExit = func(ctx context.Context, current *workflow.SimpleParseResult) error {
-		fmt.Printf("[%s] ✅ 工作流正常结束\n", time.Now().Format("15:04:05"))
+		sys.Printf("[%s] ✅ 工作流正常结束\n", time.Now().Format("15:04:05"))
 		return nil
 	}
 
 	executor.OnWorkFlowReturn = func(ctx context.Context, current *workflow.SimpleParseResult) error {
-		fmt.Printf("[%s] ❌ 工作流因错误中断\n", time.Now().Format("15:04:05"))
+		sys.Printf("[%s] ❌ 工作流因错误中断\n", time.Now().Format("15:04:05"))
 		return nil
 	}
 
@@ -163,7 +163,7 @@ func main() {
 	var wg sync.WaitGroup
 	results := make(chan string, numWorkflows)
 
-	fmt.Printf("\n🚀 开始并发执行 %d 个工作流实例...\n", numWorkflows)
+	sys.Printf("\n🚀 开始并发执行 %d 个工作流实例...\n", numWorkflows)
 
 	startTime := time.Now()
 
@@ -195,14 +195,14 @@ func main() {
 	// 收集结果
 	successCount := 0
 	for result := range results {
-		fmt.Printf("[%s] %s\n", time.Now().Format("15:04:05"), result)
+		sys.Printf("[%s] %s\n", time.Now().Format("15:04:05"), result)
 		if result != "" {
 			successCount++
 		}
 	}
 
 	duration := time.Since(startTime)
-	fmt.Printf("\n⏱️  总执行时间: %v\n", duration)
-	fmt.Printf("📊 成功执行: %d/%d 个工作流实例\n", successCount, numWorkflows)
-	fmt.Printf("🚀 平均每个工作流执行时间: %v\n", duration/time.Duration(numWorkflows))
+	sys.Printf("\n⏱️  总执行时间: %v\n", duration)
+	sys.Printf("📊 成功执行: %d/%d 个工作流实例\n", successCount, numWorkflows)
+	sys.Printf("🚀 平均每个工作流执行时间: %v\n", duration/time.Duration(numWorkflows))
 }

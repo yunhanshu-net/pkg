@@ -188,9 +188,9 @@ func (e *WorkflowExecutor) executePrintStatement(stmt *SimpleStatement, result *
 			}
 		}
 		fmt.Printf("   【%s】%s\n", stepName, logMessage)
-	} else if strings.HasPrefix(stmt.Content, "sys.Print") {
+	} else if strings.HasPrefix(stmt.Content, "fmt.Print") {
 		// 全局日志
-		parseResult.AddGlobalLog("info", stmt.Content, "sys.Print")
+		parseResult.AddGlobalLog("info", stmt.Content, "fmt.Print")
 		fmt.Printf("   【sys】%s\n", stmt.Content)
 	} else {
 		// 其他打印语句作为全局日志

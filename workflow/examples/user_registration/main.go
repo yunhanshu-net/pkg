@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	fmt.Println("🚀 用户注册工作流演示")
-	fmt.Println("========================")
+	sys.Println("🚀 用户注册工作流演示")
+	sys.Println("========================")
 
 	// 1. 定义工作流代码
 	workflowCode := `var input = map[string]interface{}{
@@ -99,7 +99,7 @@ func main() {
     }
     step4.Printf("✅ 用户档案创建成功，档案ID: %s", 档案ID)
     
-    fmt.Printf("🎉 用户注册流程完成！用户: %s, ID: %s, 档案: %s\n", 用户名, 用户ID, 档案ID)
+    sys.Printf("🎉 用户注册流程完成！用户: %s, ID: %s, 档案: %s\n", 用户名, 用户ID, 档案ID)
 }`
 
 	// 2. 解析工作流
@@ -117,8 +117,8 @@ func main() {
 
 	// 5. 设置回调函数
 	executor.OnFunctionCall = func(ctx context.Context, step workflow.SimpleStep, in *workflow.ExecutorIn) (*workflow.ExecutorOut, error) {
-		fmt.Printf("\n📋 执行步骤: %s - %s\n", step.Name, in.StepDesc)
-		fmt.Printf("📥 输入参数: %+v\n", in.RealInput)
+		sys.Printf("\n📋 执行步骤: %s - %s\n", step.Name, in.StepDesc)
+		sys.Printf("📥 输入参数: %+v\n", in.RealInput)
 
 		// 模拟不同的业务逻辑
 		switch step.Name {
@@ -182,17 +182,17 @@ func main() {
 	}
 
 	executor.OnWorkFlowUpdate = func(ctx context.Context, current *workflow.SimpleParseResult) error {
-		fmt.Printf("🔄 工作流状态更新: FlowID=%s, 变量数量=%d\n", current.FlowID, len(current.Variables))
+		sys.Printf("🔄 工作流状态更新: FlowID=%s, 变量数量=%d\n", current.FlowID, len(current.Variables))
 		return nil
 	}
 
 	executor.OnWorkFlowExit = func(ctx context.Context, current *workflow.SimpleParseResult) error {
-		fmt.Println("\n✅ 工作流正常结束")
+		sys.Println("\n✅ 工作流正常结束")
 		return nil
 	}
 
 	executor.OnWorkFlowReturn = func(ctx context.Context, current *workflow.SimpleParseResult) error {
-		fmt.Println("\n❌ 工作流因错误中断")
+		sys.Println("\n❌ 工作流因错误中断")
 		return nil
 	}
 
@@ -200,27 +200,27 @@ func main() {
 	ctx := context.Background()
 	startTime := time.Now()
 
-	fmt.Println("\n🚀 开始执行工作流...")
+	sys.Println("\n🚀 开始执行工作流...")
 	if err := executor.Start(ctx, parseResult); err != nil {
 		log.Fatalf("❌ 工作流执行失败: %v", err)
 	}
 
 	duration := time.Since(startTime)
-	fmt.Printf("\n⏱️  总执行时间: %v\n", duration)
+	sys.Printf("\n⏱️  总执行时间: %v\n", duration)
 
 	// 7. 显示最终结果
-	fmt.Println("\n📊 最终变量状态:")
+	sys.Println("\n📊 最终变量状态:")
 	for name, varInfo := range parseResult.Variables {
-		fmt.Printf("  %s: %v (%s)\n", name, varInfo.Value, varInfo.Type)
+		sys.Printf("  %s: %v (%s)\n", name, varInfo.Value, varInfo.Type)
 	}
 
 	// 8. 显示步骤日志
-	fmt.Println("\n📝 步骤执行日志:")
+	sys.Println("\n📝 步骤执行日志:")
 	for _, step := range parseResult.Steps {
 		if len(step.Logs) > 0 {
-			fmt.Printf("  %s:\n", step.Name)
+			sys.Printf("  %s:\n", step.Name)
 			for _, log := range step.Logs {
-				fmt.Printf("    %s\n", log.Message)
+				sys.Printf("    %s\n", log.Message)
 			}
 		}
 	}
